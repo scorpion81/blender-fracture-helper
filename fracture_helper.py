@@ -1,8 +1,8 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 00, 34),
-    "blender": (2, 77, 0),
+    "version": (2, 00, 35),
+    "blender": (2, 78, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
     "warning": "",
@@ -34,6 +34,7 @@ def setup_particles(count=100):
     psys.use_modifier_stack = True
     psys.emit_from = 'VOLUME'
     psys.distribution = 'RAND'
+    psys.physics_type = 'NO'
     
 def raycast(context, event, ray_max=1000.0, group=None):
     """Run this function on left mouse, execute the ray cast"""
@@ -334,7 +335,7 @@ class ViewOperatorFracture(bpy.types.Operator):
                     context.scene.objects.unlink(o)
                     o.user_clear()
                     bpy.data.objects.remove(o)
-                bpy.data.groups.remove(self.gr)
+                bpy.data.groups.remove(self.gr, do_unlink=True)
                 
             return {'CANCELLED'}
 
@@ -380,7 +381,7 @@ class ViewOperatorFracture(bpy.types.Operator):
             self.report({'WARNING'}, "Active space must be a View3d")
             return {'CANCELLED'}
 
-def main(context, start=1, random=0.0):
+def main(context, start=1, random=0.0, snap=True):
    context.scene.layers[19] = True
    act = context.active_object
    act.select = False
@@ -403,8 +404,12 @@ def main(context, start=1, random=0.0):
             if (gr is not None) and ob.name in gr.objects:
                 #already in existing group, skip  
                 ob.select = False
-            
-   bpy.ops.view3d.snap_cursor_to_selected()
+
+   if (snap == True):            
+       bpy.ops.view3d.snap_cursor_to_selected()
+   else:
+       bpy.ops.view3d.snap_cursor_to_active()
+              
    bpy.ops.object.duplicate()
    bpy.ops.anim.keyframe_clear_v3d()   
    bpy.ops.rigidbody.objects_remove()
@@ -412,6 +417,7 @@ def main(context, start=1, random=0.0):
    for ob in context.selected_objects:
        if ob != act:
             context.scene.objects.active = ob
+            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
             ob.draw_type = 'BOUNDS'
             ob.hide_render = True
             ob.show_name = True
@@ -420,8 +426,7 @@ def main(context, start=1, random=0.0):
             ob.layers[19] = True
             for x in range(0, 19):
                 ob.layers[x] = False
-            
-                               
+
    bpy.ops.object.convert(target='MESH', keep_original=False)
    
    if gr is None:
@@ -440,8 +445,14 @@ def main(context, start=1, random=0.0):
             
             ob.matrix_world = act.matrix_world.inverted() * ob.matrix_world
             ob.parent = act
-            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
-            bpy.ops.view3d.snap_selected_to_cursor(use_offset=True)
+            
+            if (snap == True and not ob["isCurve"]):
+                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
+                bpy.ops.view3d.snap_selected_to_cursor(use_offset=True)
+            
+            if (ob["isCurve"]):
+                #psys.emit_from = 'VERT'
+                ob.modifiers.new(type='SKIN', name='SkinHelper')
 
             ob.modifiers.new(type='PARTICLE_SYSTEM', name='ParticleHelper')
             #make particle system settings here....
@@ -535,6 +546,7 @@ class FractureHelper(bpy.types.Operator):
     bl_label = "Generate smaller shards"
     start = bpy.props.IntProperty(name="start", default = 1)
     random = bpy.props.FloatProperty(name="random", default = 0.0)
+    snap = bpy.props.BoolProperty(name="snap", default = True)
 
     def execute(self, context):
         act = context.active_object is not None
@@ -563,7 +575,7 @@ class FractureHelper(bpy.types.Operator):
             self.report({'WARNING'}, "For animation curve please select only one curve and specify an animation object") 
             return {'CANCELLED'}
     
-        main(context, self.start, self.random)
+        main(context, self.start, self.random, self.snap)
         return {'FINISHED'}
     #### Useful: The created HelperObject has to be parented to the Baseobject 
     ####           so its moved with it when translating / rotating    
@@ -837,7 +849,7 @@ class ClusterHelperOperator(bpy.types.Operator):
             context.scene.objects.unlink(go)
             bpy.data.objects.remove(go) 
 
-        bpy.data.groups.remove(gr)
+        bpy.data.groups.remove(gr, do_unlink=True)
         
         #parent Clusterparent to baseobject
         par.matrix_world = oldact.matrix_world.inverted() * par.matrix_world.copy()
@@ -945,8 +957,8 @@ class ClusterHelperOperator(bpy.types.Operator):
         md.cluster_breaking_angle = math.radians(0.1)
         md.use_constraints = True
         context.scene.objects.active = oldact
-        # execute fracture_helper()  
-        bpy.ops.object.fracture_helper(start=0, random=15.0)
+        # execute fracture_helper() 
+        bpy.ops.object.fracture_helper(start=0, random=15.0, snap=False)
         
         lastact.matrix_world = oldact.matrix_world.inverted() * lastact.matrix_world.copy()
         lastact.parent = oldact
