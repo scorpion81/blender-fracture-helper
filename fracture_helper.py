@@ -453,6 +453,12 @@ def main(context, start=1, random=0.0, snap=True):
             if (ob["isCurve"]):
                 #psys.emit_from = 'VERT'
                 ob.modifiers.new(type='SKIN', name='SkinHelper')
+            
+            if (snap == False):
+                #called from physical rough edges...
+                #add solidify on inner face helper
+                mod = ob.modifiers.new(type='SOLIDIFY', name='SolidifyHelper')
+                mod.thickness = 0.25
 
             ob.modifiers.new(type='PARTICLE_SYSTEM', name='ParticleHelper')
             #make particle system settings here....
@@ -468,6 +474,7 @@ def main(context, start=1, random=0.0, snap=True):
             psys.use_render_emitter = False
             psys.render_type = 'NONE'
             psys.use_modifier_stack = True
+            psys.physics_type = 'NO'
                 
             if (ob["isCurve"]):
                 psys.emit_from = 'VERT'
