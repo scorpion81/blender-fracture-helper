@@ -476,11 +476,11 @@ def main(context, start=1, random=0.0, snap=True):
             psys.use_modifier_stack = True
             psys.physics_type = 'NO'
                 
-            if (ob["isCurve"]):
-                psys.emit_from = 'VERT'
-            else:
-                psys.emit_from = 'VOLUME'
-                psys.distribution = 'RAND'
+            #if (ob["isCurve"]):
+            #    psys.emit_from = 'VERT'
+            #else:
+            psys.emit_from = 'VOLUME'
+            psys.distribution = 'RAND'
                 
             ob.select = False
             
