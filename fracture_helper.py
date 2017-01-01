@@ -463,7 +463,7 @@ def main(context, start=1, random=0.0, snap=True):
             ob.modifiers.new(type='PARTICLE_SYSTEM', name='ParticleHelper')
             #make particle system settings here....
             psys = ob.particle_systems[0].settings
-            psys.count = 100
+            psys.count = 500
             psys.frame_start = start
             psys.frame_end = 1
             psys.lifetime = 1
