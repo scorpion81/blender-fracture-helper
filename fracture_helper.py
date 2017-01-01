@@ -1736,18 +1736,17 @@ class CollisionSetupOperator(bpy.types.Operator):
                 act.collision.friction_factor = 0.4
                 act.collision.friction_random = 0.3   
                 
-                #check whether smoke collison is existing, add if not (all objects)               
-           #md = find_modifier(ob, 'SMOKE')
+           #check whether smoke collison is existing, add if not (all objects)               
+           md = find_modifier(ob, 'SMOKE')
            
            #taken out due to instability of smoke simulation 22.03.2016
-           #if md2 is None:
-                
-                #md2 = ob.modifiers.new(name="Smoke_Collision", type='SMOKE')
+           if md2 is None:
+                md2 = ob.modifiers.new(name="Smoke_Collision", type='SMOKE')
            
            # only when no domain exists and its name doesnt end on _nsc, make smoke type to collision
            # but what about existing flows, are they being excluded via _nsc ?
-           #if md2.smoke_type not in {'DOMAIN', 'FLOW'} and not ob.name.endswith("_nsc"):     
-                #md2.smoke_type = 'COLLISION'
+           if md2.smoke_type not in {'DOMAIN', 'FLOW'} and not ob.name.endswith("_nsc"):     
+                md2.smoke_type = 'COLLISION'
         
         #move FractureModifier to first Position
         bpy.ops.object.move_fmtotop()            
