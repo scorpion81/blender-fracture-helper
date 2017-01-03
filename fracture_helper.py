@@ -1715,29 +1715,26 @@ class CollisionSetupOperator(bpy.types.Operator):
     
     def execute(self, context):
         selected = context.selected_objects
-        allobs = bpy.data.objects
+        #allobs = bpy.data.objects
         #selected.append(context.active_object)
-        act = context.active_object
+        #act = context.active_object
                
-        for act in selected:
+        for ob in selected:
         
-           if act.type != 'MESH':
+           if ob.type != 'MESH':
                continue
            
-           md = find_modifier(act, 'COLLISION')
-           md2 = find_modifier(act, 'SMOKE')
+           md = find_modifier(ob, 'COLLISION')
+           md2 = find_modifier(ob, 'SMOKE')
            if md2 is not None and md2.smoke_type == 'DOMAIN':
                continue
                
            if md is None:
                 #was_none = True
-                act.modifiers.new(name="Debris_Collision", type='COLLISION')
-                act.collision.damping_factor = 0.8
-                act.collision.friction_factor = 0.4
-                act.collision.friction_random = 0.3   
-                
-           #check whether smoke collison is existing, add if not (all objects)               
-           md = find_modifier(ob, 'SMOKE')
+                ob.modifiers.new(name="Debris_Collision", type='COLLISION')
+                ob.collision.damping_factor = 0.8
+                ob.collision.friction_factor = 0.4
+                ob.collision.friction_random = 0.3
            
            #taken out due to instability of smoke simulation 22.03.2016
            if md2 is None:
