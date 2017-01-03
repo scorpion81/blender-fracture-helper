@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 00, 35),
+    "version": (2, 00, 36),
     "blender": (2, 78, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
