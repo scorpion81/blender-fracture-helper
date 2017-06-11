@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 00, 36),
+    "version": (2, 00, 42),
     "blender": (2, 78, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -15,7 +15,7 @@ import random
 from bpy_extras import view3d_utils
 from mathutils import Vector, Matrix
 
-def setup_particles(count=100):
+def setup_particles(count=150):
     ob = bpy.context.active_object
     bpy.ops.object.particle_system_add()
     #make particle system settings here....
@@ -707,6 +707,16 @@ class TimingPanel(bpy.types.Panel):
             col.prop(context.object, "is_dynamic", text="Object moves", icon='FORCE_HARMONIC')
             col.prop(context.object, "fracture_frame", text="Start fracture from frame")
             col.operator("object.fracture_frame_set", icon='PREVIEW_RANGE')
+            
+            layout.prop(context.scene, "time_scale", text="Time Scale")
+            
+            col = layout.column(align=True)
+            row = col.row(align=True)
+            row.operator("object.set_timescale")
+            row.operator("object.clear_timescale")
+            row = col.row(align=True)
+            row.operator("object.clear_all_timescale")
+            row.operator("object.apply_timescale")
 
 #def update_wire(self, context):
 #    context.object.show_wire = context.object.use_wire
@@ -1125,6 +1135,7 @@ class SmokeSetupOperator(bpy.types.Operator):
         flows = [] #context.selected_objects
         #flows.append(context.active_object)
         fr = context.scene.frame_current
+        fmOb = None
         
         #check whether smoke is already set up, if yes.. only set keyframes
         #check for selected objects...
@@ -1176,6 +1187,7 @@ class SmokeSetupOperator(bpy.types.Operator):
             
             context.scene.objects.active = ob
             bpy.ops.object.fracture_refresh(reset=True)
+            fmOb = ob
         
         #setup quick smoke
         bpy.ops.object.quick_smoke()
@@ -1192,8 +1204,8 @@ class SmokeSetupOperator(bpy.types.Operator):
                 flow.noise_texture = tex
                 flow.texture_map_type = 'UV'
                 flow.uv_layer = "InnerUV"
-                flow.surface_distance = 0.20
-                flow.density = 0.63
+                flow.surface_distance = 0.30
+                flow.density = 0.35
                 flow.subframes = 2
                 flow.use_initial_velocity = True
                 flow.velocity_factor = 1
@@ -1214,10 +1226,10 @@ class SmokeSetupOperator(bpy.types.Operator):
         if md.smoke_type == 'DOMAIN':
             domain = md.domain_settings
             domain.alpha = 0.097
-            domain.beta = -0.147
+            domain.beta = -0.237
             domain.vorticity = 1.57
             domain.use_dissolve_smoke = True
-            domain.dissolve_speed = 21
+            domain.dissolve_speed = 50
             domain.use_dissolve_smoke_log = True
             domain.use_adaptive_domain = True
             domain.use_high_resolution = True
@@ -1245,6 +1257,11 @@ class SmokeSetupOperator(bpy.types.Operator):
         
         #jump to Frame 1 
         bpy.context.scene.frame_current = 1
+        
+        #do refracture
+        if fmOb is not None:
+            context.scene.objects.active = fmOb
+            bpy.ops.object.fracture_refresh(reset=True)
         
         return {'FINISHED'}
 
@@ -1303,6 +1320,7 @@ class DustSetupOperator(bpy.types.Operator):
         #selected.append(context.active_object)
         act = context.active_object
         psys_name = "DUST_PSystem"
+        fmOb = None
   
           
         if bpy.data.objects.get("Smoke Domain") is None:
@@ -1322,6 +1340,7 @@ class DustSetupOperator(bpy.types.Operator):
                 was_none = True
                 md = ob.modifiers.new(name="Fracture", type='FRACTURE')
 
+            fmOb = ob
             for vg in ob.vertex_groups:
                 if vg.name == "INNER_vertex":
                     vertgroup = vg
@@ -1339,7 +1358,7 @@ class DustSetupOperator(bpy.types.Operator):
                     # partsys.settings.frame_start = context.object.smokedebrisdust_emission_start
                     # partsys.settings.frame_end = context.object.smokedebrisdust_emission_start + 10
                     partsys.settings.frame_start = context.scene.frame_current
-                    partsys.settings.frame_end = context.scene.frame_current + 10
+                    partsys.settings.frame_end = context.scene.frame_current + 25
             
             print(partsys, len(ob.particle_systems))        
             if partsys is None:
@@ -1369,7 +1388,7 @@ class DustSetupOperator(bpy.types.Operator):
                 pdata.frame_end = context.scene.frame_current + 17
                 pdata.lifetime = 75
                 pdata.lifetime_random = 0.60
-                pdata.factor_random = 0.85
+                pdata.factor_random = 3
                 pdata.normal_factor = 0
                 pdata.tangent_phase = 0.5
                 pdata.subframes = 5
@@ -1438,6 +1457,11 @@ class DustSetupOperator(bpy.types.Operator):
         
         context.scene.frame_current = 1
         
+        #do refracture
+        if fmOb is not None:
+            context.scene.objects.active = fmOb
+            bpy.ops.object.fracture_refresh(reset=True)
+        
         return {'FINISHED'} 
 
 class DebrisSetupOperator(bpy.types.Operator):
@@ -1497,6 +1521,7 @@ class DebrisSetupOperator(bpy.types.Operator):
         #selected.append(context.active_object)
         act = context.active_object
         psys_name = "DEBRIS_PSystem"
+        fmOb = None
   
         #setup inner vertex group and FM, if not present
         for ob in selected:
@@ -1511,6 +1536,7 @@ class DebrisSetupOperator(bpy.types.Operator):
                 was_none = True
                 md = ob.modifiers.new(name="Fracture", type='FRACTURE')
 
+            fmOb = ob
             for vg in ob.vertex_groups:
                 if vg.name == "INNER_vertex":
                     vertgroup = vg
@@ -1550,14 +1576,14 @@ class DebrisSetupOperator(bpy.types.Operator):
                 pdata = psys.settings
                 psys.name = psys_name;
                 pdata.name = "DEBRIS_Settings"
-                pdata.count = 250
+                pdata.count = 750
                 
                 #pdata.frame_start = context.object.smokedebrisdust_emission_start
                 #pdata.frame_end = context.object.smokedebrisdust_emission_start + 10
                 pdata.frame_start = context.scene.frame_current
                 pdata.frame_end = context.scene.frame_current + 10
                 pdata.lifetime = context.scene.frame_end
-                pdata.factor_random = 0.95
+                pdata.factor_random = 3.2
                 pdata.normal_factor = 0
                 pdata.tangent_phase = 0.1
                 pdata.use_rotations = True
@@ -1566,8 +1592,8 @@ class DebrisSetupOperator(bpy.types.Operator):
                 pdata.angular_velocity_mode = 'VELOCITY'
                 pdata.angular_velocity_factor = 1
                 pdata.use_dynamic_rotation = True
-                pdata.particle_size = 0.135
-                pdata.size_random = 0.81
+                pdata.particle_size = 0.130
+                pdata.size_random = 0.75
                 pdata.use_multiply_size_mass = True
                 pdata.effector_weights.gravity = 1.0
                 pdata.effector_weights.smokeflow = 0
@@ -1611,6 +1637,11 @@ class DebrisSetupOperator(bpy.types.Operator):
         bpy.ops.object.move_fmtotop()  
         
         context.scene.frame_current = 1
+        
+        #do refracture
+        if fmOb is not None:
+            context.scene.objects.active = fmOb
+            bpy.ops.object.fracture_refresh(reset=True)
         
         return {'FINISHED'} 
         
@@ -1663,7 +1694,7 @@ def set_smoke_keyframes(self, context, ob, fr):
         md.flow_settings.surface_distance = 0.0
         ob.keyframe_insert(data_path="modifiers[\"Smoke\"].flow_settings.surface_distance")
         
-        context.scene.frame_current += 28
+        context.scene.frame_current += 50
         ob.keyframe_insert(data_path="modifiers[\"Smoke\"].flow_settings.surface_distance")
         
         context.scene.frame_current = fr
@@ -1732,9 +1763,9 @@ class CollisionSetupOperator(bpy.types.Operator):
            if md is None:
                 #was_none = True
                 ob.modifiers.new(name="Debris_Collision", type='COLLISION')
-                ob.collision.damping_factor = 0.8
+                ob.collision.damping_factor = 0.6
                 ob.collision.friction_factor = 0.4
-                ob.collision.friction_random = 0.3
+                ob.collision.friction_random = 0.25
            
            #taken out due to instability of smoke simulation 22.03.2016
            if md2 is None:
@@ -1793,14 +1824,235 @@ class ExecuteFractureOperator(bpy.types.Operator):
             #Apply Scale has to be executed beforehand... 
             bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
             context.scene.objects.active = ob
+            
+            #jump back to start frame
+            if (context.scene.rigidbody_world):
+                context.scene.frame_set(context.scene.rigidbody_world.point_cache.frame_start)
+            else:
+                context.scene.frame_set(1.0)
+            
             bpy.ops.object.fracture_refresh(reset=True)
             #activate PhysicsTab ... but how?
             #bpy.data.screens = 'PHYSICS'
         
         
-        return {'FINISHED'} 
-        
+        return {'FINISHED'}
 
+class SetTimeScaleOperator(bpy.types.Operator):
+    """Sets time scale keyframes..."""
+    bl_idname = "object.set_timescale"
+    bl_label = "Set Time Scale"
+    
+    def execute(self, context):
+        
+        bpy.context.scene.keyframe_insert(data_path="time_scale")
+            
+        for o in bpy.context.scene.objects:
+            md = find_modifier(o, 'FLUID_SIMULATION')
+            if md is not None and md.settings.type == 'DOMAIN':
+                md.settings.simulation_rate = bpy.context.scene.time_scale / 100
+                o.keyframe_insert(data_path="modifiers[\""+md.name+"\"].settings.simulation_rate")
+                
+            md = find_modifier(o, 'SMOKE')
+            if md is not None and md.smoke_type == 'DOMAIN':
+                md.domain_settings.time_scale = bpy.context.scene.time_scale / 100
+                o.keyframe_insert(data_path="modifiers[\""+md.name+"\"].domain_settings.time_scale")
+            
+            #GAH take ALL particlesystems per object into account     
+            for md in o.modifiers:
+                if md.type == 'PARTICLE_SYSTEM' and md.particle_system.settings.physics_type == 'NEWTON':
+                    md.particle_system.settings.timestep = bpy.context.scene.time_scale / 100 * 0.04
+                    md.particle_system.settings.keyframe_insert(data_path="timestep")
+                
+            #FLIP Fluid compat    
+            if hasattr(o, "flip_fluid_object"):
+                if hasattr(o.flip_fluid_object, "domain"):
+                    o.flip_fluid_object.domain.time_scale = bpy.context.scene.time_scale / 100
+                    o.keyframe_insert(data_path="flip_fluid_object.domain.time_scale") 
+    
+        #special case rigidbody, this is located at context.scene.rigidbody_world
+        if bpy.context.scene.rigidbody_world is not None:
+           bpy.context.scene.rigidbody_world.time_scale = bpy.context.scene.time_scale / 100    
+           bpy.context.scene.keyframe_insert(data_path="rigidbody_world.time_scale")
+        
+        return {'FINISHED'}
+           
+class ClearTimeScaleOperator(bpy.types.Operator):
+    """Clears time scale keyframes..."""
+    bl_idname = "object.clear_timescale"
+    bl_label = "Clear Time Scale"
+    
+    def execute(self, context):
+        
+        try:
+            bpy.context.scene.keyframe_delete(data_path="time_scale")
+        except RuntimeError:
+            pass
+            
+        for o in bpy.context.scene.objects:
+            md = find_modifier(o, 'FLUID_SIMULATION')
+            if md is not None and md.settings.type == 'DOMAIN':
+                try:
+                    o.keyframe_delete(data_path="modifiers[\""+md.name+"\"].settings.simulation_rate")
+                except RuntimeError: # silent fail in case of no animation is present
+                    pass
+                
+            md = find_modifier(o, 'SMOKE')
+            if md is not None and md.smoke_type == 'DOMAIN':
+                try:
+                    o.keyframe_delete(data_path="modifiers[\""+md.name+"\"].domain_settings.time_scale")
+                except RuntimeError: # silent fail in case of no animation is present
+                    pass
+            
+            #GAH take ALL particlesystems per object into account     
+            for md in o.modifiers:
+                if md.type == 'PARTICLE_SYSTEM' and md.particle_system.settings.physics_type == 'NEWTON':
+                    try:
+                        md.particle_system.settings.keyframe_delete(data_path="timestep")
+                    except RuntimeError: # silent fail in case of no animation is present
+                        pass 
+                
+            #FLIP Fluid compat    
+            if hasattr(o, "flip_fluid_object"):
+                if hasattr(o.flip_fluid_object, "domain"):
+                    o.keyframe_delete(data_path="flip_fluid_object.domain.time_scale")
+    
+        #special case rigidbody, this is located at context.scene.rigidbody_world
+        if bpy.context.scene.rigidbody_world is not None:
+            try:
+                bpy.context.scene.keyframe_delete(data_path="rigidbody_world.time_scale")
+            except RuntimeError: # silent fail in case of no animation is present
+                pass
+            
+        return {'FINISHED'}
+    
+class ClearAllTimeScaleOperator(bpy.types.Operator):
+    """Clears time scale keyframes..."""
+    bl_idname = "object.clear_all_timescale"
+    bl_label = "Clear All Time Scale"
+    
+    def execute(self, context):
+        
+        delete_keyframes(bpy.context, bpy.context.scene, "time_scale")
+        bpy.context.scene.time_scale = 100
+            
+        for o in bpy.context.scene.objects:
+            md = find_modifier(o, 'FLUID_SIMULATION')
+            if md is not None and md.settings.type == 'DOMAIN':
+                md.settings.simulation_rate = 1.0
+                try:
+                    delete_keyframes(bpy.context, o, "modifiers[\""+md.name+"\"].settings.simulation_rate")
+                except RuntimeError: # silent fail in case of no animation is present
+                    pass
+                
+            md = find_modifier(o, 'SMOKE')
+            if md is not None and md.smoke_type == 'DOMAIN':
+                md.domain_settings.time_scale = 1.0
+                try:
+                    delete_keyframes(bpy.context, o, "modifiers[\""+md.name+"\"].domain_settings.time_scale")
+                except RuntimeError: # silent fail in case of no animation is present
+                    pass
+            
+            #GAH take ALL particlesystems per object into account     
+            for md in o.modifiers: 
+                if md.type == 'PARTICLE_SYSTEM' and md.particle_system.settings.physics_type == 'NEWTON':
+                    md.particle_system.settings.timestep = 0.04
+                    try:
+                        delete_keyframes(bpy.context, md.particle_system.settings, "timestep")
+                    except RuntimeError: # silent fail in case of no animation is present
+                        pass
+            
+            #FLIP Fluid compat    
+            if hasattr(o, "flip_fluid_object"):
+                if hasattr(o.flip_fluid_object, "domain"):
+                    o.flip_fluid_object.domain.time_scale = 1.0
+                    delete_keyframes(bpy.context, o, "flip_fluid_object.domain.time_scale") 
+    
+        #special case rigidbody, this is located at context.scene.rigidbody_world
+        if bpy.context.scene.rigidbody_world is not None:
+            bpy.context.scene.rigidbody_world.time_scale = 1.0
+            try:
+                delete_keyframes(bpy.context, bpy.context.scene, "rigidbody_world.time_scale")
+            except RuntimeError: # silent fail in case of no animation is present
+                pass
+            
+        return {'FINISHED'}
+    
+class ApplyTimeScaleOperator(bpy.types.Operator):
+    """Applies time scale keyframes to all matching scene objects"""
+    bl_idname = "object.apply_timescale"
+    bl_label = "Apply Time Scale"
+    
+    def execute(self, context):
+        anim = bpy.context.scene.animation_data
+        if anim is None:
+            return {'CANCELLED'}
+        
+        action = anim.action
+        if action is None:
+            return {'CANCELLED'}
+            
+        for fc in action.fcurves:
+            if fc.data_path == 'time_scale':
+                for keyf in fc.keyframe_points:
+                    bpy.context.scene.frame_set(keyf.co[0])
+                     
+                    for o in bpy.context.scene.objects:
+                        md = find_modifier(o, 'FLUID_SIMULATION')
+                        if md is not None and md.settings.type == 'DOMAIN':
+                            md.settings.simulation_rate = keyf.co[1] / 100 
+                            o.keyframe_insert(data_path="modifiers[\""+md.name+"\"].settings.simulation_rate")
+                            
+                        md = find_modifier(o, 'SMOKE')
+                        if md is not None and md.smoke_type == 'DOMAIN':
+                            md.domain_settings.time_scale = keyf.co[1] / 100
+                            o.keyframe_insert(data_path="modifiers[\""+md.name+"\"].domain_settings.time_scale")
+                             
+                        #GAH take ALL particlesystems per object into account     
+                        for md in o.modifiers:
+                            if md.type == 'PARTICLE_SYSTEM' and md.particle_system.settings.physics_type == 'NEWTON':
+                                md.particle_system.settings.timestep = keyf.co[1] / 100 * 0.04
+                                md.particle_system.settings.keyframe_insert(data_path="timestep")
+                            
+                        #FLIP Fluid compat    
+                        if hasattr(o, "flip_fluid_object"):
+                            if hasattr(o.flip_fluid_object, "domain"):
+                                o.flip_fluid_object.domain.time_scale = keyf.co[1] / 100
+                                o.keyframe_insert(data_path="flip_fluid_object.domain.time_scale") 
+                
+                    #special case rigidbody, this is located at context.scene.rigidbody_world
+                    if bpy.context.scene.rigidbody_world is not None:
+                       bpy.context.scene.rigidbody_world.time_scale = keyf.co[1] / 100    
+                       bpy.context.scene.keyframe_insert(data_path="rigidbody_world.time_scale")
+        
+        bpy.context.scene.frame_set(1)
+        
+        return {'FINISHED'}
+            
+def update_timescale(self, context):
+    if bpy.context.object is None:
+        return
+    
+    for o in bpy.context.scene.objects:
+        md = find_modifier(o, 'FLUID_SIMULATION')
+        if md is not None and md.settings.type == 'DOMAIN':
+            md.settings.simulation_rate = bpy.context.object.time_scale / 100 
+        md = find_modifier(o, 'SMOKE')
+        if md is not None and md.smoke_type == 'DOMAIN':
+            md.domain_settings.time_scale = bpy.context.object.time_scale / 100 
+        #GAH take ALL particlesystems per object into account     
+        for md in o.modifiers:
+            if md.type == 'PARTICLE_SYSTEM' and md.particle_system.settings.physics_type == 'NEWTON':
+                md.particle_system.settings.timestep = bpy.context.object.time_scale / 100 * 0.04
+            
+        # FLIP FLUID compat
+        if hasattr(o, "flip_fluid_object"):
+            if hasattr(o.flip_fluid_object, "domain"):
+                o.flip_fluid_object.domain.time_scale = bpy.context.object.time_scale / 100 
+    
+    #special case rigidbody, this is located at context.scene.rigidbody_world
+    if bpy.context.scene.rigidbody_world is not None:
+        bpy.context.scene.rigidbody_world.time_scale = bpy.context.object.time_scale / 100
 
 def register():
     
@@ -1823,6 +2075,11 @@ def register():
     bpy.utils.register_class(CollisionSetupOperator)
     bpy.utils.register_class(MoveFMToTopOperator)
     bpy.utils.register_class(ExecuteFractureOperator)
+    bpy.utils.register_class(SetTimeScaleOperator)
+    bpy.utils.register_class(ClearTimeScaleOperator)
+    bpy.utils.register_class(ClearAllTimeScaleOperator)
+    bpy.utils.register_class(ApplyTimeScaleOperator)
+    
     
     bpy.types.Object.use_animation_curve = bpy.props.BoolProperty(name="use_animation_curve", default=False)
     bpy.types.Object.animation_obj = bpy.props.StringProperty(name="animation_obj", default = "")
@@ -1848,6 +2105,7 @@ def register():
     bpy.types.Object.mouse_status = bpy.props.StringProperty(name="mouse_status", default="Start mouse based fracture")
     bpy.types.Object.delete_helpers = bpy.props.BoolProperty(name="delete_helpers", default=False)
     #bpy.types.Object.use_autoexecute = bpy.props.BoolProperty(name="use_autoexecute", default=False, update=update_autoexecute)
+    bpy.types.Scene.time_scale = bpy.props.IntProperty(name="time_scale", default=100, step=1, min=0, max=200, subtype="PERCENTAGE", update=update_timescale)
     
 def unregister():
     bpy.utils.unregister_class(MainOperationsPanel)
@@ -1869,6 +2127,10 @@ def unregister():
     bpy.utils.unregister_class(CollisionSetupOperator)
     bpy.utils.unregister_class(MoveFMToTopOperator)
     bpy.utils.unregister_class(ExecuteFractureOperator)
+    bpy.utils.unregister_class(SetTimeScaleOperator)
+    bpy.utils.unregister_class(ClearTimeScaleOperator)
+    bpy.utils.unregister_class(ClearAllTimeScaleOperator)
+    bpy.utils.unregister_class(ApplyTimeScaleOperator)
     
        
     del bpy.types.Object.use_animation_curve
@@ -1886,6 +2148,7 @@ def unregister():
     del bpy.types.Object.mouse_status
     del bpy.types.Object.delete_helpers
     del bpy.types.Object.global_smoke_start
+    del bpy.types.Scene.time_scale
 
 
 if __name__ == "__main__":
