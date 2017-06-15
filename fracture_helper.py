@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 00, 42),
+    "version": (2, 1, 1),
     "blender": (2, 78, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -15,7 +15,7 @@ import random
 from bpy_extras import view3d_utils
 from mathutils import Vector, Matrix
 
-def setup_particles(count=150):
+def setup_particles(count=100):
     ob = bpy.context.active_object
     bpy.ops.object.particle_system_add()
     #make particle system settings here....
@@ -132,7 +132,6 @@ class MainOperationsPanel(bpy.types.Panel):
     def draw(self, context):
         if not context.object:
             self.layout.label("Please select atleast one object first")
-            
         else:
             layout = self.layout
             col = layout.column(align=True)
@@ -144,10 +143,10 @@ class MainOperationsPanel(bpy.types.Panel):
                 row.prop(md, "show_render", text="")
                 row.prop(md, "show_viewport", text="")
                 
-                col.operator("object.fracture", icon='MOD_EXPLODE')
+                col.operator("fracture.execute", icon='MOD_EXPLODE')
                 col.prop(md, "auto_execute", text="Toggle Automatic Execution", icon='FILE_REFRESH')
             else:
-                col.operator("object.fracture", icon='MOD_EXPLODE', text="Add Fracture")
+                col.operator("fracture.execute", icon='MOD_EXPLODE', text="Add Fracture")
                 if not context.object.rigid_body:
                     col.operator("rigidbody.object_add", icon='MESH_ICOSPHERE',text="Add Rigidbody")
                 else:
@@ -186,10 +185,14 @@ class VIEW3D_SettingsPanel(bpy.types.Panel):
             col.prop(context.space_data, "show_relationship_lines", text="Toggle Relationship Lines", icon = 'PARTICLE_TIP')
             if len(context.object.particle_systems) > 0:
                 col.prop(context.object.particle_systems[0].settings, "draw_method", text="", icon = 'MOD_PARTICLES')
+            md = find_modifier(context.object, 'DYNAMIC_PAINT')
+            if md and md.canvas_settings:
+                surf = md.canvas_settings.canvas_surfaces["dp_canvas_FM"]
+                col.prop(surf, "show_preview", toggle=True, icon='RESTRICT_VIEW_OFF' if surf.show_preview else 'RESTRICT_VIEW_ON')
             
 class ViewOperatorFracture(bpy.types.Operator):
     """Modal mouse based object fracture"""
-    bl_idname = "view3d.mouse_based_fracture"
+    bl_idname = "fracture.mouse_based_fracture"
     bl_label = "Mouse based fracture"
     scaling = False
     hit2d = None
@@ -210,7 +213,7 @@ class ViewOperatorFracture(bpy.types.Operator):
                 if hit is not None and check_fm():
                     self.act = context.active_object
                     #self.act.select = False
-                    if self.act.mouse_mode == "Radial":
+                    if context.scene.mouse_mode == "Radial":
                         vec = normal.normalized()
                         #if (vec != Vector((0, 0, 1))):
                         #    vec = vec.cross(Vector((0, 0, 1))
@@ -230,7 +233,7 @@ class ViewOperatorFracture(bpy.types.Operator):
                         #sphere wont work so try with concentric circles
                         radius = 0.15
                         bpy.ops.mesh.primitive_circle_add(radius=radius, \
-                                                              vertices=self.act.mouse_segments, \
+                                                              vertices=context.scene.mouse_segments, \
                                                               location=hit)
                         
                         bpy.ops.object.editmode_toggle()
@@ -238,7 +241,7 @@ class ViewOperatorFracture(bpy.types.Operator):
                         radius += 0.1
                         for r in range(self.act.mouse_rings):
                             bpy.ops.mesh.primitive_circle_add(radius=radius, \
-                                                              vertices=self.act.mouse_segments, \
+                                                              vertices=context.scene.mouse_segments, \
                                                               location=hit)
                             ob = context.active_object
                             ob.select = True
@@ -256,16 +259,16 @@ class ViewOperatorFracture(bpy.types.Operator):
                         ob.matrix_world = self.act.matrix_world * mat
                                                      
                     else:
-                        if self.act.mouse_object == "Cube":
+                        if context.scene.mouse_object == "Cube":
                             bpy.ops.mesh.primitive_cube_add(radius = 0.05, location=hit)
-                        elif self.act.mouse_object == "Sphere":
+                        elif context.mouse_object == "Sphere":
                             bpy.ops.mesh.primitive_uv_sphere_add(size = 0.05, location=hit)
                         else:
-                            if self.act.mouse_custom_object == "":
+                            if context.scene.mouse_custom_object == "":
                                 self.report({'WARNING'}, "Need to pick a custom object, please retry")
                                 return {'CANCELLED'}
                                 
-                            ob = bpy.data.objects[self.act.mouse_custom_object]
+                            ob = bpy.data.objects[context.scene.mouse_custom_object]
                             if ob != None:
                                 context.scene.objects.active = ob
                                 self.act.select = False
@@ -285,15 +288,15 @@ class ViewOperatorFracture(bpy.types.Operator):
                     #print(self.act, context.active_object)
                     if not self.scaling:
                         self.report({'WARNING'}, "Ambigous target object, please retry")
-                        context.object.mouse_status = "Start mouse based fracture"
+                        context.scene.mouse_status = "Start mouse based fracture"
                         context.area.header_text_set()
                         return {'CANCELLED'}
 
                     self.scaling = False
                     if self.act != context.active_object and self.act is not None \
                     and context.active_object is not None:
-                        if self.act.mouse_mode == "Uniform":
-                            setup_particles(self.act.mouse_count)
+                        if context.scene.mouse_mode == "Uniform":
+                            setup_particles(context.scene.mouse_count)
                         self.gr.objects.link(context.active_object)
                         context.active_object.parent = self.act
                         context.active_object.location -= self.act.location
@@ -327,9 +330,9 @@ class ViewOperatorFracture(bpy.types.Operator):
             return {'RUNNING_MODAL'}
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             context.area.header_text_set()
-            context.object.mouse_status = "Start mouse based fracture"
+            context.scene.mouse_status = "Start mouse based fracture"
             #delete group and group objects if desired
-            if context.object.delete_helpers:
+            if context.scene.delete_helpers:
                 for o in self.gr.objects:
                     self.gr.objects.unlink(o)
                     context.scene.objects.unlink(o)
@@ -361,14 +364,14 @@ class ViewOperatorFracture(bpy.types.Operator):
                 self.act = context.active_object
                 self.md.extra_group = self.gr
                 self.md.refresh = False
-                if self.act.mouse_mode == "Uniform":
+                if context.scene.mouse_mode == "Uniform":
                     self.md.point_source = md.point_source.union({'EXTRA_PARTICLES'})
                     self.md.use_particle_birth_coordinates = True
                 else:
                     self.md.point_source = md.point_source.union({'EXTRA_VERTS'})
                 
                 context.area.header_text_set(text=self.msg)
-                context.object.mouse_status = "Mouse based fracture running"
+                context.scene.mouse_status = "Mouse based fracture running"
                 context.object.show_wire = True
                 context.scene.layers[15] = True
                 context.scene.layers[0] = True
@@ -500,8 +503,8 @@ def main(context, start=1, random=0.0, snap=True):
    bpy.ops.object.fracture_refresh(reset=True)
    
    act = context.scene.objects.active
-   use_curve = context.object.use_animation_curve
-   anim_ob = context.object.animation_obj
+   use_curve = context.scene.use_animation_curve
+   anim_ob = context.scene.animation_obj
    if (use_curve == True and anim_ob != ""):
        anim_ob = bpy.data.objects[anim_ob] 
        for ob in bpy.data.objects:
@@ -524,7 +527,7 @@ def main(context, start=1, random=0.0, snap=True):
        context.scene.objects.active = anim_ob
        bpy.ops.rigidbody.objects_add(type='ACTIVE')
        anim_ob.rigid_body.kinematic = True
-       anim_ob.rigid_body.is_ghost = act.animation_ghost
+       anim_ob.rigid_body.is_ghost = context.scene.animation_ghost
        anim_ob.rigid_body.is_trigger = True
        anim_ob.rigid_body.use_margin = True
        anim_ob.rigid_body.collision_margin = 0.0
@@ -542,14 +545,14 @@ def main(context, start=1, random=0.0, snap=True):
        act.rigid_body.kinematic = True
        act.rigid_body.use_kinematic_deactivation = True
    
-   context.object.animation_obj = ''
-   context.object.use_animation_curve = False
-   context.object.animation_ghost = False
+   context.scene.animation_obj = ''
+   context.scene.use_animation_curve = False
+   context.scene.animation_ghost = False
    context.scene.update()
    
 class FractureHelper(bpy.types.Operator):
     """Create helper object using an other object"""
-    bl_idname = "object.fracture_helper"
+    bl_idname = "fracture.create_helper"
     bl_label = "Generate smaller shards"
     start = bpy.props.IntProperty(name="start", default = 1)
     random = bpy.props.FloatProperty(name="random", default = 0.0)
@@ -578,7 +581,7 @@ class FractureHelper(bpy.types.Operator):
             self.report({'WARNING'}, "Need an active object with fracture modifier and atleast another selected object") 
             return {'CANCELLED'}
             
-        if (not(isSingle) or isNoCurve) and (context.object.use_animation_curve == True) and (context.object.animation_obj == ""):
+        if (not(isSingle) or isNoCurve) and (context.scene.use_animation_curve == True) and (context.scene.animation_obj == ""):
             self.report({'WARNING'}, "For animation curve please select only one curve and specify an animation object") 
             return {'CANCELLED'}
     
@@ -597,28 +600,25 @@ class FracturePathPanel(bpy.types.Panel):
   
     
     def draw(self, context):
-        if not context.object:
-            self.layout.label("Please select atleast one object first")
-        else:
-            layout = self.layout
-            col = layout.column(align=True)
-            row = layout.row(align=True)
-            
-            col.label("Path animation:", icon='PINNED')
-            col.prop_search(context.object, "animation_obj", bpy.data, "objects", text="Object", icon='OBJECT_DATA')
-            col.separator()
-            col.prop(context.object, "use_animation_curve", text="Use As Animation Path", icon = 'ANIM')
-            col.prop(context.object, "animation_ghost", text="Toggle RB Ghost", icon='GHOST_ENABLED')
-            op = col.operator("object.fracture_helper", icon='MOD_PARTICLES')
-            op.start = 0
-            op.random = 15.0
-            
-            col.separator()
-            col.separator()
-            col.separator()
-            
-            col.label("Combination:", icon='PINNED')
-            col.operator("object.combine_subobjects",icon='GROUP')
+        layout = self.layout
+        col = layout.column(align=True)
+        row = layout.row(align=True)
+        
+        col.label("Path animation:", icon='PINNED')
+        col.prop_search(context.scene, "animation_obj", bpy.data, "objects", text="Object", icon='OBJECT_DATA')
+        col.separator()
+        col.prop(context.scene, "use_animation_curve", text="Use As Animation Path", icon = 'ANIM')
+        col.prop(context.scene, "animation_ghost", text="Toggle RB Ghost", icon='GHOST_ENABLED')
+        op = col.operator("fracture.create_helper", icon='MOD_PARTICLES')
+        op.start = 0
+        op.random = 15.0
+        
+        col.separator()
+        col.separator()
+        col.separator()
+        
+        col.label("Combination:", icon='PINNED')
+        col.operator("fracture.combine_subobjects",icon='GROUP')
 
 
 ### from now much stuff is put into a common panel,  its better than having separate panels for everything
@@ -631,59 +631,56 @@ class FractureHelperPanel(bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
-        if not context.object:
-            self.layout.label("Please select atleast one object first")
+        layout = self.layout
+        col = layout.column(align=True)
+        row = layout.row(align=True)
+                    
+        #Other objects as helpers:
+        col.label(text="Smaller shards using other object:", icon='PINNED')
+        #col.operator("object.fracture_helper", icon='MOD_PARTICLES')
+        #col.prop(context.object, "particle_amount", text="Particle amount")
+        #col.prop(context.object, "particle_random", text="Particle random")
+        systems = len(context.object.particle_systems)
+        col.operator("fracture.create_helper", icon='MOD_PARTICLES')
+        if systems > 0:
+            if systems > 1:
+                col.label(text="Only the first particle system is used as helper particle system")
+            psys = context.object.particle_systems[0]
+            col.prop(psys.settings, "count", text="Particle amount")
+            col.prop(psys.settings, "factor_random", text="Particle random")
+            
         else:
-            layout = self.layout
-            col = layout.column(align=True)
-            row = layout.row(align=True)
-                        
-            #Other objects as helpers:
-            col.label(text="Smaller shards using other object:", icon='PINNED')
-            #col.operator("object.fracture_helper", icon='MOD_PARTICLES')
-            #col.prop(context.object, "particle_amount", text="Particle amount")
-            #col.prop(context.object, "particle_random", text="Particle random")
-            systems = len(context.object.particle_systems)
-            col.operator("object.fracture_helper", icon='MOD_PARTICLES')
-            if systems > 0:
-                if systems > 1:
-                    col.label(text="Only the first particle system is used as helper particle system")
-                psys = context.object.particle_systems[0]
-                col.prop(psys.settings, "count", text="Particle amount")
-                col.prop(psys.settings, "factor_random", text="Particle random")
-                
-            else:
-                col.label(text="Click Generate Smaller shards to make this object a helper")
+            col.label(text="Click Generate Smaller shards to make this object a helper")
+    
+        col.separator()
+        col.separator()
+        col.separator()
         
-            col.separator()
-            col.separator()
-            col.separator()
-            
-            #Mouse based helpers:
-            col.label(text="Smaller shards using mouse:", icon='PINNED')
+        #Mouse based helpers:
+        col.label(text="Smaller shards using mouse:", icon='PINNED')
+        row = col.row(align=True)
+        row.prop(context.scene, "mouse_mode", text="Fracture Mode", expand=True)
+        if context.scene.mouse_mode == "Uniform":
             row = col.row(align=True)
-            row.prop(context.object, "mouse_mode", text="Fracture Mode", expand=True)
-            if context.object.mouse_mode == "Uniform":
-                row = col.row(align=True)
-                row.prop(context.object, "mouse_object", text="Helper Object", expand=True)
-                if (context.object.mouse_object == "Custom"):
-                    col.prop_search(context.object, "mouse_custom_object", bpy.data, "objects", text="")
-                col.prop(context.object, "mouse_count", text="Shard count")
-            else:
-                row = col.row(align=True)
-                row.prop(context.object, "mouse_segments", text="Segments")
-                row.prop(context.object, "mouse_rings", text="Rings")
-                
-            col.prop(context.object, "delete_helpers", text="Delete helpers afterwards", icon='X')
-            col.operator("view3d.mouse_based_fracture", text=context.object.mouse_status, icon='RESTRICT_SELECT_OFF')
-            col.separator()
-            col.separator()
-            col.separator()
+            row.prop(context.scene, "mouse_object", text="Helper Object", expand=True)
+            if (context.scene.mouse_object == "Custom"):
+                col.prop_search(context.scene, "mouse_custom_object", bpy.data, "objects", text="")
+            col.prop(context.scene, "mouse_count", text="Shard count")
+        else:
+            row = col.row(align=True)
+            row.prop(context.scene, "mouse_segments", text="Segments")
+            row.prop(context.scene, "mouse_rings", text="Rings")
             
-            #Extract inner faces for rough edges (cluster)
-            col.label(text="Rough edges:", icon='PINNED')
-            col.operator("object.create_cluster_helpers", icon='FCURVE')
-            col.operator("object.create_displaced_edges", icon='FCURVE')
+        col.prop(context.scene, "delete_helpers", text="Delete helpers afterwards", icon='X')
+        col.operator("fracture.mouse_based_fracture", text=context.scene.mouse_status, icon='RESTRICT_SELECT_OFF')
+        col.separator()
+        col.separator()
+        col.separator()
+        
+        #Extract inner faces for rough edges (cluster)
+        col.label(text="Rough edges:", icon='PINNED')
+        col.operator("fracture.create_cluster_helpers", icon='FCURVE')
+        col.operator("fracture.create_displaced_edges", icon='FCURVE')
             
             
             
@@ -695,28 +692,25 @@ class TimingPanel(bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
-        if not context.object:
-            self.layout.label("Please select atleast one object first")
-        else:
-            layout = self.layout
-            col = layout.column(align=True)
-            row = layout.row(align=True)
-            
-            #Time control:
-            col.label(text="Delayed fracture:", icon='PINNED')
-            col.prop(context.object, "is_dynamic", text="Object moves", icon='FORCE_HARMONIC')
-            col.prop(context.object, "fracture_frame", text="Start fracture from frame")
-            col.operator("object.fracture_frame_set", icon='PREVIEW_RANGE')
-            
-            layout.prop(context.scene, "time_scale", text="Time Scale")
-            
-            col = layout.column(align=True)
-            row = col.row(align=True)
-            row.operator("object.set_timescale")
-            row.operator("object.clear_timescale")
-            row = col.row(align=True)
-            row.operator("object.clear_all_timescale")
-            row.operator("object.apply_timescale")
+        layout = self.layout
+        col = layout.column(align=True)
+        row = layout.row(align=True)
+        
+        #Time control:
+        col.label(text="Delayed fracture:", icon='PINNED')
+        col.prop(context.scene, "is_dynamic", text="Object moves", icon='FORCE_HARMONIC')
+        col.prop(context.scene, "fracture_frame", text="Start fracture from frame")
+        col.operator("fracture.frame_set", icon='PREVIEW_RANGE')
+        
+        layout.prop(context.scene, "time_scale", text="Time Scale")
+        
+        col = layout.column(align=True)
+        row = col.row(align=True)
+        row.operator("fracture.set_timescale")
+        row.operator("fracture.clear_timescale")
+        row = col.row(align=True)
+        row.operator("fracture.clear_all_timescale")
+        row.operator("fracture.apply_timescale")
 
 #def update_wire(self, context):
 #    context.object.show_wire = context.object.use_wire
@@ -750,7 +744,7 @@ class TimingPanel(bpy.types.Panel):
 
 class FractureFrameOperator(bpy.types.Operator):
     """Tooltip"""
-    bl_idname = "object.fracture_frame_set"
+    bl_idname = "fracture.frame_set"
     bl_label = "Set start frame"
     
     def execute(self, context):
@@ -770,7 +764,7 @@ class FractureFrameOperator(bpy.types.Operator):
             ctx["fracture"] = md
             bpy.ops.fracture.preset_add(ctx, name="helperpreset")
             context.object.modifiers.remove(md)
-            frame_end = context.object.fracture_frame
+            frame_end = context.scene.fracture_frame
             
             context.object.select = True
             #bpy.ops.anim.keyframe_clear_v3d()
@@ -787,7 +781,7 @@ class FractureFrameOperator(bpy.types.Operator):
             bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
             
             context.object.rigid_body.kinematic = False
-            if (context.object.is_dynamic):
+            if (context.scene.is_dynamic):
                 bpy.ops.rigidbody.bake_to_keyframes('EXEC_DEFAULT', frame_start=1, frame_end=frame_end, step=1)
                           
             context.scene.frame_set(1)
@@ -819,7 +813,7 @@ class FractureFrameOperator(bpy.types.Operator):
             bpy.ops.object.fracture_refresh()
             
             #Move FM to top position in modifier stack
-            bpy.ops.object.move_fmtotop()   
+            bpy.ops.fracture.move_fmtotop()   
             
             return {'FINISHED'}
         else:
@@ -828,7 +822,7 @@ class FractureFrameOperator(bpy.types.Operator):
             
 class ClusterHelperOperator(bpy.types.Operator):
     """Extracts the inner faces and uses this new mesh to generate smaller shards. These will be glued used clustergroups"""
-    bl_idname = "object.create_cluster_helpers"
+    bl_idname = "fracture.create_cluster_helpers"
     bl_label = "Physical rough edges"
 
     def make_cluster_cores(self, context, oldact, lastact):
@@ -975,7 +969,7 @@ class ClusterHelperOperator(bpy.types.Operator):
         md.use_constraints = True
         context.scene.objects.active = oldact
         # execute fracture_helper() 
-        bpy.ops.object.fracture_helper(start=0, random=15.0, snap=False)
+        bpy.ops.fracture.create_helper(start=0, random=15.0, snap=False)
         
         lastact.matrix_world = oldact.matrix_world.inverted() * lastact.matrix_world.copy()
         lastact.parent = oldact
@@ -1021,7 +1015,7 @@ def ensure_texture(ob):
 ### Rough edges using displacement modifier:
 class DisplacementEdgesOperator(bpy.types.Operator):
     """Setups the modifier stack for simulated (not real) rough edges"""
-    bl_idname = "object.create_displaced_edges"
+    bl_idname = "fracture.create_displaced_edges"
     bl_label = "Simulated rough edges"
     
     def execute(self, context):
@@ -1060,7 +1054,7 @@ class DisplacementEdgesOperator(bpy.types.Operator):
 
 class CombineSubObjectsOperator(bpy.types.Operator):
     """Combine multiple Fractured objects into one object"""
-    bl_idname = "object.combine_subobjects"
+    bl_idname = "fracture.combine_subobjects"
     bl_label = "Combine Sub Objects"
     
     def execute(self, context):
@@ -1116,18 +1110,42 @@ def find_modifier(ob, typ):
         if md.type == typ:
             return md
     return None
+
+def make_canvas(ob, start, end, fade):
+    dp = find_modifier(ob, 'DYNAMIC_PAINT')
+    if dp is None:
+        dp = ob.modifiers.new(name="dp_canvas_FM", type='DYNAMIC_PAINT')
+        dp.ui_type = 'CANVAS'
+    if dp.canvas_settings is None:
+        ctx = bpy.context.copy()
+        ctx['object'] = ob
+        bpy.ops.dpaint.type_toggle(ctx, type='CANVAS')
     
-def find_inner_uv(ob):
-    for uv in ob.data.uv_textures:
-        if uv.name == "InnerUV":
-            return uv
-    return None
-
-
+    canvas = dp.canvas_settings.canvas_surfaces[0]
+    canvas.name = "dp_canvas_FM"
+    canvas.use_antialiasing = True
+    canvas.frame_start = 1 #start  else dp cache doesnt work properly
+    canvas.frame_end = end
+    canvas.surface_type = 'WEIGHT'
+    canvas.use_dissolve = True
+    canvas.dissolve_speed = fade
+    canvas.use_dissolve_log = True
+    
+    vertgroup = None
+    for vg in ob.vertex_groups:
+        if vg.name == "dp_weight_FM":
+            vertgroup = vg
+                    
+    if vertgroup is None:
+        vertgroup = ob.vertex_groups.new(name="dp_weight_FM")
+    
+    canvas.output_name_a = vertgroup.name
+    
+    return vertgroup.name
 
 class SmokeSetupOperator(bpy.types.Operator):
-    """Setup smoke on inner faces"""
-    bl_idname = "object.setup_smoke"
+    """Setup smoke from dynamic paint"""
+    bl_idname = "fracture.setup_smoke"
     bl_label = "Inner Smoke"
     
     def execute(self, context):
@@ -1136,6 +1154,8 @@ class SmokeSetupOperator(bpy.types.Operator):
         #flows.append(context.active_object)
         fr = context.scene.frame_current
         fmOb = None
+        psys_name = "SMOKE_PSystem"
+
         
         #check whether smoke is already set up, if yes.. only set keyframes
         #check for selected objects...
@@ -1143,17 +1163,18 @@ class SmokeSetupOperator(bpy.types.Operator):
             md = find_modifier(ob, 'SMOKE')
             if md is None or (md is not None and md.smoke_type not in {'FLOW', 'DOMAIN'}):
                 flows.append(ob)
-            elif md.smoke_type == 'FLOW':
-                set_smoke_keyframes(self, context, ob, fr)
+            #elif md.smoke_type == 'FLOW':
+                #set_smoke_keyframes(self, context, ob, fr)
+                
         
         #and for active object (not really sure whether this step here is necessary,
         #shouldnt active ob be in selected objs too ?        
-        if context.active_object is not None:        
-            md = find_modifier(context.active_object, 'SMOKE')
-            if md is None or (md is not None and md.smoke_type not in {'FLOW', 'DOMAIN'}):
-                flows.append(context.active_object)
-            elif md.smoke_type == 'FLOW':
-                set_smoke_keyframes(self, context, context.active_object, fr)
+        #if context.active_object is not None:        
+        #    md = find_modifier(context.active_object, 'SMOKE')
+        #    if md is None or (md is not None and md.smoke_type not in {'FLOW', 'DOMAIN'}):
+        #        flows.append(context.active_object)
+            #elif md.smoke_type == 'FLOW':
+                #set_smoke_keyframes(self, context, context.active_object, fr)
         
         if len(flows) == 0:
             return {'FINISHED'}    
@@ -1161,6 +1182,7 @@ class SmokeSetupOperator(bpy.types.Operator):
         #setup inner uv and FM, if not present - also remove Smoke_Collision
         for ob in flows:
             was_none = False
+            partsys = None
                       
             bpy.ops.object.modifier_remove(modifier="Smoke_Collision")
             
@@ -1168,50 +1190,94 @@ class SmokeSetupOperator(bpy.types.Operator):
             if md is None:
                 was_none = True
                 md = ob.modifiers.new(name="Fracture", type='FRACTURE')
+                
+            vg = make_canvas(ob, context.scene.emit_start, context.scene.emit_end, 75)
             
-            uv = find_inner_uv(ob)
-            if uv is None:
-                uv = ob.data.uv_textures.new(name="InnerUV")
+            # test whether ParticleSystem "ParticleDEBRIS" already exists.
+            for psystem in ob.particle_systems:
+                if psystem.name == psys_name:
+                    partsys = psystem
+                    break
+                    # if yes,synchronize startframes (start/end)
+                    # partsys.settings.frame_start = context.object.smokedebrisdust_emission_start
+                    # partsys.settings.frame_end = context.object.smokedebrisdust_emission_start + 10
+          #          partsys.settings.frame_start = context.scene.frame_current
+        #            partsys.settings.frame_end = context.scene.frame_current + 10
             
+            print(partsys, len(ob.particle_systems))        
+            if partsys is None:
+                # if no
+                # operator mostly works on active object, so set current object as active
+                # and restore the old active object afterwards
+                context.scene.objects.active = ob
+                bpy.ops.object.particle_system_add()
+                bpy.context.object.modifiers[-1].name = "Smoke_ParticleSystem"
+
+                #find last added particle system
+                #particlesystems = [md for md in context.object.modifiers if md.type == "PARTICLE_SYSTEM"]
+                psys = ob.particle_systems[-1]
+                
+                #make particle system settings here....
+                #pdata = bpy.data.particles[-1]
+                pdata = psys.settings
+                psys.name = psys_name;
+                pdata.name = "SMOKE_Settings"
+                pdata.count = 500
+                
+                #pdata.frame_start = context.object.smokedebrisdust_emission_start
+                #pdata.frame_end = context.object.smokedebrisdust_emission_start + 10
+                pdata.frame_start = context.scene.emit_start
+                pdata.frame_end = context.scene.emit_end
+                pdata.lifetime = 1
+                pdata.factor_random = 0
+                pdata.normal_factor = 0
+                pdata.tangent_phase = 0.1
+                pdata.use_rotations = True
+                pdata.rotation_factor_random = 0
+                pdata.phase_factor_random = 0
+                pdata.angular_velocity_mode = 'VELOCITY'
+                pdata.angular_velocity_factor = 0
+                pdata.use_dynamic_rotation = True
+                pdata.particle_size = 0.2
+                pdata.size_random = 0.5
+                pdata.use_multiply_size_mass = True
+                pdata.effector_weights.gravity = 1.0
+                pdata.effector_weights.smokeflow = 0
+                pdata.draw_method = 'RENDER'
+                pdata.use_render_emitter = True
+                pdata.use_modifier_stack = True
+                psys.vertex_group_density = vg
+                partsys = psys
+       
             #only do necessary setup here
-            md.uv_layer = uv.name
-            md.autohide_dist = 0.0001
-            
-            if was_none:    
-                #some weak constraints so it doesnt fall apart to early,
-                #showing the smoke
-                md.use_constraints = True
-                md.contact_dist = 2.0
-                md.constraint_limit = 10
-                md.breaking_angle = math.radians(0.5)
-            
             context.scene.objects.active = ob
-            bpy.ops.object.fracture_refresh(reset=True)
+            bpy.ops.object.fracture_refresh(reset=True)    
+            
+            #context.scene.objects.active = ob
+            #bpy.ops.object.fracture_refresh(reset=True)
             fmOb = ob
         
         #setup quick smoke
         bpy.ops.object.quick_smoke()
         
         #setup a blend texture (works best with inner smoke)
-        tex = bpy.data.textures.new("SmokeTex", 'BLEND')
+        #tex = bpy.data.textures.new("SmokeTex", 'BLEND')
         
         #flow settings
         for ob in flows:
             md = find_modifier(ob, 'SMOKE')
             if md.smoke_type == 'FLOW':
                 flow = md.flow_settings
-                flow.use_texture = True
-                flow.noise_texture = tex
-                flow.texture_map_type = 'UV'
-                flow.uv_layer = "InnerUV"
-                flow.surface_distance = 0.30
-                flow.density = 0.35
+                flow.smoke_flow_source = 'PARTICLES'
+                flow.particle_system = partsys
+                flow.particle_size = 0.3
+                flow.surface_distance = 0.20
+                flow.density = 0.63
                 flow.subframes = 2
-                flow.use_initial_velocity = True
+                flow.use_initial_velocity = False
                 flow.velocity_factor = 1
                 flow.velocity_normal = 1
                 ob.draw_type = 'TEXTURED'
-                set_smoke_keyframes(self, context, ob, fr)
                 
                 #first two materials (should be regular and inner one)
                 if context.scene.render.engine == 'BLENDER_RENDER':
@@ -1225,11 +1291,11 @@ class SmokeSetupOperator(bpy.types.Operator):
         md = find_modifier(domainOb, 'SMOKE')
         if md.smoke_type == 'DOMAIN':
             domain = md.domain_settings
-            domain.alpha = 0.097
-            domain.beta = -0.237
-            domain.vorticity = 1.57
+            domain.alpha = 0.01
+            domain.beta = -0.25
+            domain.vorticity = 2.5
             domain.use_dissolve_smoke = True
-            domain.dissolve_speed = 50
+            domain.dissolve_speed = 60
             domain.use_dissolve_smoke_log = True
             domain.use_adaptive_domain = True
             domain.use_high_resolution = True
@@ -1253,23 +1319,21 @@ class SmokeSetupOperator(bpy.types.Operator):
         #bpy.ops.object.setup_collision() 
         
         #move FractureModifier to first Position
-        bpy.ops.object.move_fmtotop()  
+        bpy.ops.fracture.move_fmtotop()  
         
         #jump to Frame 1 
         bpy.context.scene.frame_current = 1
         
         #do refracture
-        if fmOb is not None:
-            context.scene.objects.active = fmOb
-            bpy.ops.object.fracture_refresh(reset=True)
+        #if fmOb is not None:
+        #    context.scene.objects.active = fmOb
+        #    bpy.ops.object.fracture_refresh(reset=True)
         
         return {'FINISHED'}
 
-
-
 class DustSetupOperator(bpy.types.Operator):
-    """Setup dust on inner faces"""
-    bl_idname = "object.setup_dust"
+    """Setup dust from dynamic paint"""
+    bl_idname = "fracture.setup_dust"
     bl_label = "Dust"
     
     def make_dust_objects_group(self, context, ob):
@@ -1341,24 +1405,20 @@ class DustSetupOperator(bpy.types.Operator):
                 md = ob.modifiers.new(name="Fracture", type='FRACTURE')
 
             fmOb = ob
-            for vg in ob.vertex_groups:
-                if vg.name == "INNER_vertex":
-                    vertgroup = vg
-                    
-            if vertgroup is None:
-                vertgroup = ob.vertex_groups.new(name="INNER_vertex")
-                
-            md.inner_vertex_group = vertgroup.name            
-
+            
+            #create DP canvas here
+            vg = make_canvas(ob, context.scene.emit_start, context.scene.emit_end, 75)
+            
             # test whether ParticleSystem "ParticleDUST" already exists.
             for psystem in ob.particle_systems:
                 if psystem.name == psys_name:
                     partsys = psystem
+                    break
                     # if yes,synchronize startframes (start/end)
                     # partsys.settings.frame_start = context.object.smokedebrisdust_emission_start
                     # partsys.settings.frame_end = context.object.smokedebrisdust_emission_start + 10
-                    partsys.settings.frame_start = context.scene.frame_current
-                    partsys.settings.frame_end = context.scene.frame_current + 25
+                    #partsys.settings.frame_start = context.scene.frame_current
+                    #partsys.settings.frame_end = context.scene.frame_current + 10
             
             print(partsys, len(ob.particle_systems))        
             if partsys is None:
@@ -1384,17 +1444,17 @@ class DustSetupOperator(bpy.types.Operator):
                 
                 #pdata.frame_start = context.object.smokedebrisdust_emission_start
                 #pdata.frame_end = context.object.smokedebrisdust_emission_start + 10
-                pdata.frame_start = context.scene.frame_current
-                pdata.frame_end = context.scene.frame_current + 17
+                pdata.frame_start = context.scene.emit_start
+                pdata.frame_end = context.scene.emit_end
                 pdata.lifetime = 75
                 pdata.lifetime_random = 0.60
-                pdata.factor_random = 3
+                pdata.factor_random = 0.85
                 pdata.normal_factor = 0
                 pdata.tangent_phase = 0.5
                 pdata.subframes = 5
                 pdata.use_rotations = False
-                pdata.rotation_factor_random = 0.5
-                pdata.phase_factor_random = 0.5
+                pdata.rotation_factor_random = 0.1
+                pdata.phase_factor_random = 0.1
                 pdata.angular_velocity_mode = 'VELOCITY'
                 pdata.angular_velocity_factor = 1
                 pdata.use_dynamic_rotation = True
@@ -1410,12 +1470,12 @@ class DustSetupOperator(bpy.types.Operator):
                 pdata.dupli_group = gr
                 pdata.use_modifier_stack = True
                 pdata.effector_weights.gravity = 0
-                psys.vertex_group_density = "INNER_vertex"
+                psys.vertex_group_density = vg
        
             #only do necessary setup here
-            md.autohide_dist = 0.0001
+           # md.autohide_dist = 0.0001
             context.scene.objects.active = ob
-            bpy.ops.object.fracture_refresh(reset=True)
+            #bpy.ops.object.fracture_refresh(reset=True)
             
             #now there definitely is an inner material,  set it on all Objects
             #in the debris group
@@ -1440,8 +1500,8 @@ class DustSetupOperator(bpy.types.Operator):
         bpy.context.object.field.type = 'SMOKE_FLOW'
         bpy.context.object.field.shape = 'SURFACE'
         bpy.context.object.field.source_object = bpy.data.objects["Smoke Domain"]
-        bpy.context.object.field.strength = 1
-        bpy.context.object.field.flow = 1
+        bpy.context.object.field.strength = 0.75
+        bpy.context.object.field.flow = 0.1
                
         #restore active object
         context.scene.objects.active = act
@@ -1453,20 +1513,20 @@ class DustSetupOperator(bpy.types.Operator):
         #bpy.ops.object.setup_collision()  
         
         #move FM to first position
-        bpy.ops.object.move_fmtotop()  
+        bpy.ops.fracture.move_fmtotop()  
         
         context.scene.frame_current = 1
         
         #do refracture
-        if fmOb is not None:
-            context.scene.objects.active = fmOb
-            bpy.ops.object.fracture_refresh(reset=True)
+        #if fmOb is not None:
+        #    context.scene.objects.active = fmOb
+        #    bpy.ops.object.fracture_refresh(reset=True)
         
         return {'FINISHED'} 
 
 class DebrisSetupOperator(bpy.types.Operator):
-    """Setup debris on inner faces"""
-    bl_idname = "object.setup_debris"
+    """Setup debris from dynamic paint"""
+    bl_idname = "fracture.setup_debris"
     bl_label = "Debris"
     
     def make_debris_objects_group(self, context, ob):
@@ -1537,24 +1597,18 @@ class DebrisSetupOperator(bpy.types.Operator):
                 md = ob.modifiers.new(name="Fracture", type='FRACTURE')
 
             fmOb = ob
-            for vg in ob.vertex_groups:
-                if vg.name == "INNER_vertex":
-                    vertgroup = vg
-                    
-            if vertgroup is None:
-                vertgroup = ob.vertex_groups.new(name="INNER_vertex")
-                
-            md.inner_vertex_group = vertgroup.name            
+            vg = make_canvas(ob, context.scene.emit_start, context.scene.emit_end, 75)     
 
             # test whether ParticleSystem "ParticleDEBRIS" already exists.
             for psystem in ob.particle_systems:
                 if psystem.name == psys_name:
                     partsys = psystem
+                    break
                     # if yes,synchronize startframes (start/end)
                     # partsys.settings.frame_start = context.object.smokedebrisdust_emission_start
                     # partsys.settings.frame_end = context.object.smokedebrisdust_emission_start + 10
-                    partsys.settings.frame_start = context.scene.frame_current
-                    partsys.settings.frame_end = context.scene.frame_current + 10
+                    #partsys.settings.frame_start = context.scene.frame_current
+                    #partsys.settings.frame_end = context.scene.frame_current + 10
             
             print(partsys, len(ob.particle_systems))        
             if partsys is None:
@@ -1576,14 +1630,14 @@ class DebrisSetupOperator(bpy.types.Operator):
                 pdata = psys.settings
                 psys.name = psys_name;
                 pdata.name = "DEBRIS_Settings"
-                pdata.count = 750
+                pdata.count = 1000
                 
                 #pdata.frame_start = context.object.smokedebrisdust_emission_start
                 #pdata.frame_end = context.object.smokedebrisdust_emission_start + 10
-                pdata.frame_start = context.scene.frame_current
-                pdata.frame_end = context.scene.frame_current + 10
+                pdata.frame_start = context.scene.emit_start
+                pdata.frame_end = context.scene.emit_end
                 pdata.lifetime = context.scene.frame_end
-                pdata.factor_random = 3.2
+                pdata.factor_random = 1
                 pdata.normal_factor = 0
                 pdata.tangent_phase = 0.1
                 pdata.use_rotations = True
@@ -1592,8 +1646,8 @@ class DebrisSetupOperator(bpy.types.Operator):
                 pdata.angular_velocity_mode = 'VELOCITY'
                 pdata.angular_velocity_factor = 1
                 pdata.use_dynamic_rotation = True
-                pdata.particle_size = 0.130
-                pdata.size_random = 0.75
+                pdata.particle_size = 0.135
+                pdata.size_random = 0.81
                 pdata.use_multiply_size_mass = True
                 pdata.effector_weights.gravity = 1.0
                 pdata.effector_weights.smokeflow = 0
@@ -1603,12 +1657,12 @@ class DebrisSetupOperator(bpy.types.Operator):
                 pdata.use_group_pick_random = True
                 pdata.dupli_group = gr
                 pdata.use_modifier_stack = True
-                psys.vertex_group_density = "INNER_vertex"
+                psys.vertex_group_density = vg
        
             #only do necessary setup here
-            md.autohide_dist = 0.0001
+            #md.autohide_dist = 0.0001
             context.scene.objects.active = ob
-            bpy.ops.object.fracture_refresh(reset=True)
+            #bpy.ops.object.fracture_refresh(reset=True)
             
             #now there definitely is an inner material,  set it on all Objects
             #in the debris group
@@ -1634,22 +1688,22 @@ class DebrisSetupOperator(bpy.types.Operator):
         #bpy.ops.object.setup_collision()  
         
         #move FM to first position
-        bpy.ops.object.move_fmtotop()  
+        bpy.ops.fracture.move_fmtotop()  
         
         context.scene.frame_current = 1
         
         #do refracture
-        if fmOb is not None:
-            context.scene.objects.active = fmOb
-            bpy.ops.object.fracture_refresh(reset=True)
+        #if fmOb is not None:
+        #    context.scene.objects.active = fmOb
+        #    bpy.ops.object.fracture_refresh(reset=True)
         
         return {'FINISHED'} 
         
 #move FM to first position
 class MoveFMToTopOperator(bpy.types.Operator):
     """Moves the Fracture Modifier on top position in stack"""
-    bl_idname = "object.move_fmtotop"
-    bl_label = "Move FM to stack s top"
+    bl_idname = "fracture.move_fmtotop"
+    bl_label = "Move FM to top of stack"
     
     def execute(self, context):
         md = find_modifier(context.object, 'FRACTURE')
@@ -1666,71 +1720,71 @@ def delete_keyframes(context, ob, path, index=1):
             if f:
                 fc.remove(f) 
     
-def set_smoke_keyframes(self, context, ob, fr):
-    #starting from current frame
-    #Smoke Flow Source -> Keyframe on Surface: 0.14
-    #go back 3 Frames in timeline, Keyframe on Surface: 0.00
-    #go forward 13 Frames in timeline, Keyframe on Surface: 0.00
-    #ob = context.object
-    md = ob.modifiers["Smoke"]
-    #print(md)
-    if md.type == 'SMOKE' and md.smoke_type == 'FLOW':
-        # Warning, this deletes ALL keyframes on this object, no easy way to only delete all 
-        # keyframes on a specific property (without memorizing the frame numbers)
-        ob.select = True
-        #bpy.ops.anim.keyframe_clear_v3d()
-        try:
-            #why on earth do we need to jump to all keyframes in this case ?! transformation
-            #keyframes can be deleted in 1 go 
-            delete_keyframes(context, ob, "modifiers[\"Smoke\"].flow_settings.surface_distance")
-        except RuntimeError:
-            pass
-        
-        #fr = context.scene.frame_current
-        md.flow_settings.surface_distance = 0.1
-        ob.keyframe_insert(data_path="modifiers[\"Smoke\"].flow_settings.surface_distance")
-        
-        context.scene.frame_current -= 3
-        md.flow_settings.surface_distance = 0.0
-        ob.keyframe_insert(data_path="modifiers[\"Smoke\"].flow_settings.surface_distance")
-        
-        context.scene.frame_current += 50
-        ob.keyframe_insert(data_path="modifiers[\"Smoke\"].flow_settings.surface_distance")
-        
-        context.scene.frame_current = fr
-        
-                
-# set current frame via click as emission_start
-class GetFrameOperator(bpy.types.Operator):
-    """Looks for the actual frame"""
-    bl_idname = "object.get_frame"
-    bl_label = "Start all emissions now"   
-    
-    
-    def execute(self, context):
-        ob = context.object
-        psys_name = "DEBRIS_PSystem"
-        try:
-            psys = ob.particle_systems[psys_name]
-            pdata = psys.settings
-            pdata.frame_start = context.scene.frame_current
-            pdata.frame_end = context.scene.frame_current + 10
-        
-        except KeyError:
-            self.report({'WARNING'}, "No debris particle system found, skipping")
-        
-        try:
-            fr = context.scene.frame_current    
-            set_smoke_keyframes(self, context, ob, fr)
-        except KeyError:
-            self.report({'WARNING'}, "No smoke modifier (flow) found, skipping")
-        
-        #Move FM to top position in modifier stack
-        bpy.ops.object.move_fmtotop()   
-        
-        context.scene.frame_current = 1
-        
-        return {'FINISHED'} 
+#def set_smoke_keyframes(self, context, ob, fr):
+#    #starting from current frame
+#    #Smoke Flow Source -> Keyframe on Surface: 0.14
+#    #go back 3 Frames in timeline, Keyframe on Surface: 0.00
+#    #go forward 13 Frames in timeline, Keyframe on Surface: 0.00
+#    #ob = context.object
+#    md = ob.modifiers["Smoke"]
+#    #print(md)
+#    if md.type == 'SMOKE' and md.smoke_type == 'FLOW':
+#        # Warning, this deletes ALL keyframes on this object, no easy way to only delete all 
+#        # keyframes on a specific property (without memorizing the frame numbers)
+#        ob.select = True
+#        #bpy.ops.anim.keyframe_clear_v3d()
+#        try:
+#            #why on earth do we need to jump to all keyframes in this case ?! transformation
+#            #keyframes can be deleted in 1 go 
+#            delete_keyframes(context, ob, "modifiers[\"Smoke\"].flow_settings.surface_distance")
+#        except RuntimeError:
+#            pass
+#        
+#        #fr = context.scene.frame_current
+#        md.flow_settings.surface_distance = 0.1
+#        ob.keyframe_insert(data_path="modifiers[\"Smoke\"].flow_settings.surface_distance")
+#        
+#        context.scene.frame_current -= 3
+#        md.flow_settings.surface_distance = 0.0
+#        ob.keyframe_insert(data_path="modifiers[\"Smoke\"].flow_settings.surface_distance")
+#        
+#        context.scene.frame_current += 28
+#        ob.keyframe_insert(data_path="modifiers[\"Smoke\"].flow_settings.surface_distance")
+#        
+#        context.scene.frame_current = fr
+#        
+#                
+## set current frame via click as emission_start
+#class GetFrameOperator(bpy.types.Operator):
+#    """Looks for the actual frame"""
+#    bl_idname = "fracture.get_frame"
+#    bl_label = "Start all emissions now"   
+#    
+#    
+#    def execute(self, context):
+#        ob = context.object
+#        psys_name = "DEBRIS_PSystem"
+#        try:
+#            psys = ob.particle_systems[psys_name]
+#            pdata = psys.settings
+#            pdata.frame_start = context.scene.frame_current
+#            pdata.frame_end = context.scene.frame_current + 10
+#        
+#        except KeyError:
+#            self.report({'WARNING'}, "No debris particle system found, skipping")
+#        
+#        try:
+#            fr = context.scene.frame_current    
+#            set_smoke_keyframes(self, context, ob, fr)
+#        except KeyError:
+#            self.report({'WARNING'}, "No smoke modifier (flow) found, skipping")
+#        
+#        #Move FM to top position in modifier stack
+#        bpy.ops.fracture.move_fmtotop()   
+#        
+#        context.scene.frame_current = 1
+#        
+#        return {'FINISHED'} 
 
 # Add per click a collision modifier to all objects if not existing    
 # valid for Collision- and SmokeModifier (?)
@@ -1741,7 +1795,7 @@ class GetFrameOperator(bpy.types.Operator):
 
 class CollisionSetupOperator(bpy.types.Operator):
     """Setup collision for selected objects"""
-    bl_idname = "object.setup_collision"
+    bl_idname = "fracture.setup_collision"
     bl_label = "Collision on selected objects"
     
     def execute(self, context):
@@ -1763,9 +1817,9 @@ class CollisionSetupOperator(bpy.types.Operator):
            if md is None:
                 #was_none = True
                 ob.modifiers.new(name="Debris_Collision", type='COLLISION')
-                ob.collision.damping_factor = 0.6
+                ob.collision.damping_factor = 0.8
                 ob.collision.friction_factor = 0.4
-                ob.collision.friction_random = 0.25
+                ob.collision.friction_random = 0.3
            
            #taken out due to instability of smoke simulation 22.03.2016
            if md2 is None:
@@ -1777,7 +1831,7 @@ class CollisionSetupOperator(bpy.types.Operator):
                 md2.smoke_type = 'COLLISION'
         
         #move FractureModifier to first Position
-        bpy.ops.object.move_fmtotop()            
+        bpy.ops.fracture.move_fmtotop()            
         
         return {'FINISHED'} 
         
@@ -1791,24 +1845,29 @@ class SmokeDebrisDustSetupPanel(bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
-        if not context.object:
-            self.layout.label("Please select atleast one object first")
-        else:
-            layout = self.layout
-            col = layout.column(align=True)
-            row = col.row(align=True)
-            
-            row.operator("object.setup_smoke", icon='MOD_SMOKE')
-            row.operator("object.setup_dust", icon='STICKY_UVS_VERT')
-            row.operator("object.setup_debris", icon='STICKY_UVS_DISABLE')
-            
-            col.operator("object.get_frame", icon='TIME')
-            col.operator("object.setup_collision", icon='MOD_PHYSICS')
+        layout = self.layout
+        col = layout.column(align=True)
+        row = col.row(align=True)
+        row.prop(context.scene, "emit_start", text="Emission Start")
+        row.prop(context.scene, "emit_end", text="Emission End")
+        
+        row = col.row(align=True)
+        row.operator("fracture.setup_smoke", icon='MOD_SMOKE')
+        row.operator("fracture.setup_dust", icon='STICKY_UVS_VERT')
+        row.operator("fracture.setup_debris", icon='STICKY_UVS_DISABLE')
+        
+        col.operator("fracture.create_brush")
+        row = col.row(align=True)
+        row.prop(context.scene, "brush_fade", text="Brush Fadeout")
+        row.operator("fracture.set_fade_brush")
+        
+        #col.operator("fracture.get_frame", icon='TIME')
+        col.operator("fracture.setup_collision", icon='MOD_PHYSICS')
                    
 
 class ExecuteFractureOperator(bpy.types.Operator):
     """Adds FM when needed and (re)fractures..."""
-    bl_idname = "object.fracture"
+    bl_idname = "fracture.execute"
     bl_label = "Execute Fracture"
     
     def execute(self, context):
@@ -1840,7 +1899,7 @@ class ExecuteFractureOperator(bpy.types.Operator):
 
 class SetTimeScaleOperator(bpy.types.Operator):
     """Sets time scale keyframes..."""
-    bl_idname = "object.set_timescale"
+    bl_idname = "fracture.set_timescale"
     bl_label = "Set Time Scale"
     
     def execute(self, context):
@@ -1879,7 +1938,7 @@ class SetTimeScaleOperator(bpy.types.Operator):
            
 class ClearTimeScaleOperator(bpy.types.Operator):
     """Clears time scale keyframes..."""
-    bl_idname = "object.clear_timescale"
+    bl_idname = "fracture.clear_timescale"
     bl_label = "Clear Time Scale"
     
     def execute(self, context):
@@ -1928,7 +1987,7 @@ class ClearTimeScaleOperator(bpy.types.Operator):
     
 class ClearAllTimeScaleOperator(bpy.types.Operator):
     """Clears time scale keyframes..."""
-    bl_idname = "object.clear_all_timescale"
+    bl_idname = "fracture.clear_all_timescale"
     bl_label = "Clear All Time Scale"
     
     def execute(self, context):
@@ -1980,7 +2039,7 @@ class ClearAllTimeScaleOperator(bpy.types.Operator):
     
 class ApplyTimeScaleOperator(bpy.types.Operator):
     """Applies time scale keyframes to all matching scene objects"""
-    bl_idname = "object.apply_timescale"
+    bl_idname = "fracture.apply_timescale"
     bl_label = "Apply Time Scale"
     
     def execute(self, context):
@@ -2053,6 +2112,66 @@ def update_timescale(self, context):
     #special case rigidbody, this is located at context.scene.rigidbody_world
     if bpy.context.scene.rigidbody_world is not None:
         bpy.context.scene.rigidbody_world.time_scale = bpy.context.object.time_scale / 100
+        
+def update_start_end(self, context):
+    for o in bpy.context.scene.objects:
+        md = find_modifier(o, 'DYNAMIC_PAINT')
+        if md and md.canvas_settings:
+            surf = md.canvas_settings.canvas_surfaces["dp_canvas_FM"]
+            surf.frame_start = 1 #bpy.context.scene.emit_start else the DP cache doesnt work properly
+            surf.frame_end = bpy.context.scene.emit_end
+        
+        for md in o.modifiers:
+            if md.type == 'PARTICLE_SYSTEM':
+                if md.particle_system.name in {'SMOKE_PSystem', 'DUST_PSystem', 'DEBRIS_PSystem'}:
+                    md.particle_system.settings.frame_start = bpy.context.scene.emit_start
+                    md.particle_system.settings.frame_end = bpy.context.scene.emit_end
+            
+        
+class MakeBrushOperator(bpy.types.Operator):
+    """creates a dynamic paint brush on selected objects"""
+    bl_idname = "fracture.create_brush"
+    bl_label = "Create Brush"
+    
+    def execute(self, context):
+        for o in context.selected_objects:
+            md = find_modifier(o, 'DYNAMIC_PAINT')
+            if md is None:
+                md = o.modifiers.new(name="dp_brush_FM", type='DYNAMIC_PAINT')
+                
+            if md is not None and md.brush_settings is None:
+                md.ui_type = 'BRUSH'
+                ctx = context.copy()
+                ctx['object'] = o
+                bpy.ops.dpaint.type_toggle(ctx, type='BRUSH')
+            
+           
+            brush = md.brush_settings
+            brush.paint_source = 'VOLUME_DISTANCE' 
+        return {'FINISHED'}   
+
+class SetFadeBrushOperator(bpy.types.Operator):
+    """animates the alpha of a brush to fade it out"""
+    bl_idname = "fracture.set_fade_brush"
+    bl_label = "Set Brush Fadeout"
+    
+    def execute(self, context):
+        for o in context.selected_objects:
+            md = find_modifier(o, 'DYNAMIC_PAINT')
+            if md and md.brush_settings:
+                brush = md.brush_settings
+                delete_keyframes(bpy.context, o, "modifiers[\""+md.name+"\"].brush_settings.paint_alpha")
+                cur = context.scene.frame_current
+                
+                brush.paint_alpha = 1.0
+                o.keyframe_insert(data_path="modifiers[\""+md.name+"\"].brush_settings.paint_alpha")
+                
+                context.scene.frame_current = cur + context.scene.brush_fade
+                brush.paint_alpha = 0.0
+                o.keyframe_insert(data_path="modifiers[\""+md.name+"\"].brush_settings.paint_alpha")
+                
+                context.scene.frame_current = cur
+        return {'FINISHED'}
 
 def register():
     
@@ -2071,7 +2190,7 @@ def register():
     bpy.utils.register_class(DustSetupOperator)
     bpy.utils.register_class(DebrisSetupOperator)    
     bpy.utils.register_class(SmokeDebrisDustSetupPanel)
-    bpy.utils.register_class(GetFrameOperator)
+    #bpy.utils.register_class(GetFrameOperator)
     bpy.utils.register_class(CollisionSetupOperator)
     bpy.utils.register_class(MoveFMToTopOperator)
     bpy.utils.register_class(ExecuteFractureOperator)
@@ -2079,33 +2198,31 @@ def register():
     bpy.utils.register_class(ClearTimeScaleOperator)
     bpy.utils.register_class(ClearAllTimeScaleOperator)
     bpy.utils.register_class(ApplyTimeScaleOperator)
+    bpy.utils.register_class(MakeBrushOperator)
+    bpy.utils.register_class(SetFadeBrushOperator)
     
     
-    bpy.types.Object.use_animation_curve = bpy.props.BoolProperty(name="use_animation_curve", default=False)
-    bpy.types.Object.animation_obj = bpy.props.StringProperty(name="animation_obj", default = "")
-    bpy.types.Object.animation_ghost = bpy.props.BoolProperty(name="animation_ghost", default = False)
-    #bpy.types.Object.use_wire = bpy.props.BoolProperty(name="use_wire", default=False, update=update_wire)
-    #bpy.types.Object.use_relationship_lines = bpy.props.BoolProperty(name="use_relation", default=True, update=update_relationships)
-    #bpy.types.Object.use_visible_particles = bpy.props.BoolProperty(name="use_visible_particles", default=True, update=update_visible_particles)
-    #bpy.types.Object.particle_amount = bpy.props.IntProperty(name="particle_amount", default=100, update=update_particle_amount)
-    #bpy.types.Object.particle_random = bpy.props.FloatProperty(name="particle_random", default=1.5, update=update_particle_random)
-    bpy.types.Object.fracture_frame = bpy.props.IntProperty(name="fracture_frame", default=1)
-    bpy.types.Object.global_smoke_start = bpy.props.BoolProperty(name="global_smoke_start", default=False)    
-    bpy.types.Object.is_dynamic = bpy.props.BoolProperty(name="is_dynamic", default=True)
-    bpy.types.Object.mouse_mode = bpy.props.EnumProperty(name="mouse_mode", items=[("Uniform", "Uniform", "Uniform", 'MESH_CUBE', 0), \
+    bpy.types.Scene.use_animation_curve = bpy.props.BoolProperty(name="use_animation_curve", default=False)
+    bpy.types.Scene.animation_obj = bpy.props.StringProperty(name="animation_obj", default = "")
+    bpy.types.Scene.animation_ghost = bpy.props.BoolProperty(name="animation_ghost", default = False)
+    bpy.types.Scene.fracture_frame = bpy.props.IntProperty(name="fracture_frame", default=1)
+    bpy.types.Scene.is_dynamic = bpy.props.BoolProperty(name="is_dynamic", default=True)
+    bpy.types.Scene.mouse_mode = bpy.props.EnumProperty(name="mouse_mode", items=[("Uniform", "Uniform", "Uniform", 'MESH_CUBE', 0), \
                                                                                    ("Radial", "Radial", "Radial", 'MESH_UVSPHERE', 1)])
                                                                                    
-    bpy.types.Object.mouse_object = bpy.props.EnumProperty(name="mouse_object", items=[("Cube", "Cube", "Cube", 'MESH_CUBE', 0), \
+    bpy.types.Scene.mouse_object = bpy.props.EnumProperty(name="mouse_object", items=[("Cube", "Cube", "Cube", 'MESH_CUBE', 0), \
                                                                                          ("Sphere", "Sphere", "Sphere", 'MESH_UVSPHERE', 1), \
                                                                                          ("Custom", "Custom", "Custom", 'MESH_MONKEY', 2) ], default="Sphere")
-    bpy.types.Object.mouse_custom_object = bpy.props.StringProperty(name="mouse_custom_object", default="")
-    bpy.types.Object.mouse_count = bpy.props.IntProperty(name="mouse_count", default=50)
-    bpy.types.Object.mouse_segments = bpy.props.IntProperty(name="mouse_segments", default=8, min=1, max=100)
-    bpy.types.Object.mouse_rings = bpy.props.IntProperty(name="mouse_segments", default=8, min=1, max=100)
-    bpy.types.Object.mouse_status = bpy.props.StringProperty(name="mouse_status", default="Start mouse based fracture")
-    bpy.types.Object.delete_helpers = bpy.props.BoolProperty(name="delete_helpers", default=False)
-    #bpy.types.Object.use_autoexecute = bpy.props.BoolProperty(name="use_autoexecute", default=False, update=update_autoexecute)
+    bpy.types.Scene.mouse_custom_object = bpy.props.StringProperty(name="mouse_custom_object", default="")
+    bpy.types.Scene.mouse_count = bpy.props.IntProperty(name="mouse_count", default=50)
+    bpy.types.Scene.mouse_segments = bpy.props.IntProperty(name="mouse_segments", default=8, min=1, max=100)
+    bpy.types.Scene.mouse_rings = bpy.props.IntProperty(name="mouse_segments", default=8, min=1, max=100)
+    bpy.types.Scene.mouse_status = bpy.props.StringProperty(name="mouse_status", default="Start mouse based fracture")
+    bpy.types.Scene.delete_helpers = bpy.props.BoolProperty(name="delete_helpers", default=False)
     bpy.types.Scene.time_scale = bpy.props.IntProperty(name="time_scale", default=100, step=1, min=0, max=200, subtype="PERCENTAGE", update=update_timescale)
+    bpy.types.Scene.emit_start = bpy.props.IntProperty(name="emit_start", default=1, min=1, update=update_start_end)
+    bpy.types.Scene.emit_end = bpy.props.IntProperty(name="emit_end", default=250, min=1, update=update_start_end)
+    bpy.types.Scene.brush_fade = bpy.props.IntProperty(name="brush_fade", default=25, min=1)
     
 def unregister():
     bpy.utils.unregister_class(MainOperationsPanel)
@@ -2123,7 +2240,7 @@ def unregister():
     bpy.utils.unregister_class(DustSetupOperator)
     bpy.utils.unregister_class(DebrisSetupOperator)
     bpy.utils.unregister_class(SmokeDebrisDustSetupPanel)
-    bpy.utils.unregister_class(GetFrameOperator)
+    #bpy.utils.unregister_class(GetFrameOperator)
     bpy.utils.unregister_class(CollisionSetupOperator)
     bpy.utils.unregister_class(MoveFMToTopOperator)
     bpy.utils.unregister_class(ExecuteFractureOperator)
@@ -2131,24 +2248,25 @@ def unregister():
     bpy.utils.unregister_class(ClearTimeScaleOperator)
     bpy.utils.unregister_class(ClearAllTimeScaleOperator)
     bpy.utils.unregister_class(ApplyTimeScaleOperator)
+    bpy.utils.unregister_class(MakeBrushOperator)
+    bpy.utils.unregister_class(SetFadeBrushOperator)
     
        
-    del bpy.types.Object.use_animation_curve
-    del bpy.types.Object.animation_obj
-    del bpy.types.Object.animation_ghost
-    #del bpy.types.Object.use_wire
-    #del bpy.types.Object.use_relationship_lines
-    #del bpy.types.Object.use_visible_particles
-    #del bpy.types.Object.particle_amount
-    #del bpy.types.Object.particle_random
-    del bpy.types.Object.fracture_frame
-    del bpy.types.Object.is_dynamic
-    del bpy.types.Object.mouse_object
-    del bpy.types.Object.mouse_count
-    del bpy.types.Object.mouse_status
-    del bpy.types.Object.delete_helpers
-    del bpy.types.Object.global_smoke_start
+    del bpy.types.Scene.use_animation_curve
+    del bpy.types.Scene.animation_obj
+    del bpy.types.Scene.animation_ghost
+    del bpy.types.Scene.fracture_frame
+    del bpy.types.Scene.is_dynamic
+    del bpy.types.Scene.mouse_object
+    del bpy.types.Scene.mouse_count
+    del bpy.types.Scene.mouse_status
+    del bpy.types.Scene.mouse_rings
+    del bpy.types.Scene.mouse_segments
+    del bpy.types.Scene.delete_helpers
     del bpy.types.Scene.time_scale
+    del bpy.types.Scene.emit_start
+    del bpy.types.Scene.emit_end
+    del bpy.types.Scene.brush_fade
 
 
 if __name__ == "__main__":
