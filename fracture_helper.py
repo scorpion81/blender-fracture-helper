@@ -261,7 +261,7 @@ class ViewOperatorFracture(bpy.types.Operator):
                     else:
                         if context.scene.mouse_object == "Cube":
                             bpy.ops.mesh.primitive_cube_add(radius = 0.05, location=hit)
-                        elif context.mouse_object == "Sphere":
+                        elif context.scene.mouse_object == "Sphere":
                             bpy.ops.mesh.primitive_uv_sphere_add(size = 0.05, location=hit)
                         else:
                             if context.scene.mouse_custom_object == "":
@@ -320,7 +320,7 @@ class ViewOperatorFracture(bpy.types.Operator):
                 hit2d = event.mouse_region_x, event.mouse_region_y
                 size = Vector(hit2d).length - Vector(self.hit2d).length
                 size *= 0.25
-                if self.act.mouse_mode == "Uniform":
+                if context.scene.mouse_mode == "Uniform":
                     context.active_object.dimensions = (size, size, size)
                 else:
                     context.active_object.dimensions = (size * self.scale[0], 
