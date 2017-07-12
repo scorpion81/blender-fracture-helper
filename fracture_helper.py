@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 1, 1),
+    "version": (2, 1, 2),
     "blender": (2, 78, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -186,7 +186,7 @@ class VIEW3D_SettingsPanel(bpy.types.Panel):
             if len(context.object.particle_systems) > 0:
                 col.prop(context.object.particle_systems[0].settings, "draw_method", text="", icon = 'MOD_PARTICLES')
             md = find_modifier(context.object, 'DYNAMIC_PAINT')
-            if md and md.canvas_settings:
+            if md and md.canvas_settings and "dp_canvas_FM" in md.canvas_settings.canvas_surfaces.keys():
                 surf = md.canvas_settings.canvas_surfaces["dp_canvas_FM"]
                 col.prop(surf, "show_preview", toggle=True, icon='RESTRICT_VIEW_OFF' if surf.show_preview else 'RESTRICT_VIEW_ON')
             
@@ -763,6 +763,15 @@ class FractureFrameOperator(bpy.types.Operator):
             ctx = context.copy()
             ctx["fracture"] = md
             bpy.ops.fracture.preset_add(ctx, name="helperpreset")
+            
+            #determine old stack position (for re-insert there)
+            pos = 0
+            for modi in context.object.modifiers:
+                if modi != md:
+                    pos += 1
+                else:
+                    break
+            
             context.object.modifiers.remove(md)
             frame_end = context.scene.fracture_frame
             
@@ -810,10 +819,11 @@ class FractureFrameOperator(bpy.types.Operator):
             ctx["fracture"] = md
             bpy.ops.script.execute_preset(ctx, filepath=filepath, menu_idname="FRACTURE_MT_presets")
             bpy.context.object.modifiers["Fracture"].uv_layer = "InnerUV"
-            bpy.ops.object.fracture_refresh()
+            #bpy.ops.object.fracture_refresh()
             
-            #Move FM to top position in modifier stack
-            bpy.ops.fracture.move_fmtotop()   
+            #Move FM to position in modifier stack
+            bpy.ops.fracture.move_fmtotop(pos=pos)
+            bpy.ops.object.fracture_refresh(reset=True)
             
             return {'FINISHED'}
         else:
@@ -826,7 +836,7 @@ class ClusterHelperOperator(bpy.types.Operator):
     bl_label = "Physical rough edges"
 
     def make_cluster_cores(self, context, oldact, lastact):
-	    # now convert to objects and create empties at the locs
+        # now convert to objects and create empties at the locs
         tempOb = lastact #context.active_object
         print(tempOb)
         context.scene.objects.active = oldact
@@ -1288,6 +1298,7 @@ class SmokeSetupOperator(bpy.types.Operator):
                     
         #domain settings
         domainOb = context.active_object
+        domainOb.layers[0] = True
         md = find_modifier(domainOb, 'SMOKE')
         if md.smoke_type == 'DOMAIN':
             domain = md.domain_settings
@@ -1318,8 +1329,8 @@ class SmokeSetupOperator(bpy.types.Operator):
         #make all Scene objects to Colliders (Smoke/Particle) (incl FM TO TOP OPERATOR)
         #bpy.ops.object.setup_collision() 
         
-        #move FractureModifier to first Position
-        bpy.ops.fracture.move_fmtotop()  
+        #move FractureModifier to first Position (why ?)
+        #bpy.ops.fracture.move_fmtotop()  
         
         #jump to Frame 1 
         bpy.context.scene.frame_current = 1
@@ -1512,8 +1523,8 @@ class DustSetupOperator(bpy.types.Operator):
         #make all scene objects colliders (Smoke/Particle) (incl FM TO TOP OPERATOR)
         #bpy.ops.object.setup_collision()  
         
-        #move FM to first position
-        bpy.ops.fracture.move_fmtotop()  
+        #move FM to first position (why ?, new modifiers if any... will be put after it anyway)
+        #bpy.ops.fracture.move_fmtotop()  
         
         context.scene.frame_current = 1
         
@@ -1687,8 +1698,8 @@ class DebrisSetupOperator(bpy.types.Operator):
         #make all scene objects colliders (Smoke/Particle) (incl FM TO TOP OPERATOR)
         #bpy.ops.object.setup_collision()  
         
-        #move FM to first position
-        bpy.ops.fracture.move_fmtotop()  
+        #move FM to first position (why ?)
+       # bpy.ops.fracture.move_fmtotop()  
         
         context.scene.frame_current = 1
         
@@ -1705,10 +1716,12 @@ class MoveFMToTopOperator(bpy.types.Operator):
     bl_idname = "fracture.move_fmtotop"
     bl_label = "Move FM to top of stack"
     
+    pos = bpy.props.IntProperty(name="pos")
+    
     def execute(self, context):
         md = find_modifier(context.object, 'FRACTURE')
         #unless modifier isnt the first, move up...
-        while md != context.object.modifiers[0] and md is not None:
+        while md != context.object.modifiers[self.pos] and md is not None:
             bpy.ops.object.modifier_move_up(modifier="Fracture")
         return {'FINISHED'}
 
@@ -1830,8 +1843,8 @@ class CollisionSetupOperator(bpy.types.Operator):
            if md2.smoke_type not in {'DOMAIN', 'FLOW'} and not ob.name.endswith("_nsc"):     
                 md2.smoke_type = 'COLLISION'
         
-        #move FractureModifier to first Position
-        bpy.ops.fracture.move_fmtotop()            
+        #move FractureModifier to first Position (why ?)
+       # bpy.ops.fracture.move_fmtotop()            
         
         return {'FINISHED'} 
         
@@ -1850,16 +1863,19 @@ class SmokeDebrisDustSetupPanel(bpy.types.Panel):
         row = col.row(align=True)
         row.prop(context.scene, "emit_start", text="Emission Start")
         row.prop(context.scene, "emit_end", text="Emission End")
+        if context.object and context.object.particle_systems.active:
+            row = col.row(align=True)
+            row.prop(context.object.particle_systems.active.settings, "lifetime", text="Lifetime(Active)")
         
         row = col.row(align=True)
         row.operator("fracture.setup_smoke", icon='MOD_SMOKE')
         row.operator("fracture.setup_dust", icon='STICKY_UVS_VERT')
         row.operator("fracture.setup_debris", icon='STICKY_UVS_DISABLE')
         
-        col.operator("fracture.create_brush")
+        col.operator("fracture.create_brush", icon='MOD_DYNAMICPAINT')
         row = col.row(align=True)
         row.prop(context.scene, "brush_fade", text="Brush Fadeout")
-        row.operator("fracture.set_fade_brush")
+        row.operator("fracture.set_fade_brush", icon='PREVIEW_RANGE')
         
         #col.operator("fracture.get_frame", icon='TIME')
         col.operator("fracture.setup_collision", icon='MOD_PHYSICS')
