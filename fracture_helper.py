@@ -15,7 +15,7 @@ import random
 from bpy_extras import view3d_utils
 from mathutils import Vector, Matrix
 
-def setup_particles(count=100):
+def setup_particles(count=150):
     ob = bpy.context.active_object
     bpy.ops.object.particle_system_add()
     #make particle system settings here....
