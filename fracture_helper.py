@@ -157,15 +157,15 @@ class MainOperationsPanel(bpy.types.Panel):
                 layout.prop(rb, "type")
                 row = layout.row()
                 row.prop(rb, "kinematic", text="Animated")
+                row = layout.row()
+                row.prop(rb, "stop_trigger", text="Untrigger")
+                
                 if rb.type == "ACTIVE":
-                    row.prop(rb, "use_kinematic_deactivation", text="Triggered")
+                    row.prop(rb, "is_trigger")
                 
                     row = layout.row()
-                    row.prop(rb, "is_trigger")
+                    row.prop(rb, "use_kinematic_deactivation", text="Triggered")
                     row.prop(rb, "is_ghost")
-                    
-                    row = layout.row()
-                    row.prop(rb, "stop_trigger", text="Untrigger")
                     
                     layout.prop(rb, "mass")
                 
@@ -191,7 +191,7 @@ class VIEW3D_SettingsPanel(bpy.types.Panel):
             md = find_modifier(context.object, 'DYNAMIC_PAINT')
             if md and md.canvas_settings and "dp_canvas_FM" in md.canvas_settings.canvas_surfaces.keys():
                 surf = md.canvas_settings.canvas_surfaces["dp_canvas_FM"]
-                col.prop(surf, "show_preview", toggle=True, icon='RESTRICT_VIEW_OFF' if surf.show_preview else 'RESTRICT_VIEW_ON')
+                col.prop(surf, "show_preview", text="Toggle Dynamic Paint Preview", toggle=True, icon='RESTRICT_VIEW_OFF' if surf.show_preview else 'RESTRICT_VIEW_ON')
             
 class ViewOperatorFracture(bpy.types.Operator):
     """Modal mouse based object fracture"""
