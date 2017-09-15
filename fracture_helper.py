@@ -157,13 +157,17 @@ class MainOperationsPanel(bpy.types.Panel):
                 layout.prop(rb, "type")
                 row = layout.row()
                 row.prop(rb, "kinematic", text="Animated")
-                if rb.type == "ACTIVE":
-                    row.prop(rb, "use_kinematic_deactivation", text="Triggered")
+                row = layout.row()
+                row.prop(rb, "stop_trigger")
                 
-                    row = layout.row()
+                if rb.type == "ACTIVE":
                     row.prop(rb, "is_trigger")
+                    row.prop(rb, "use_stop_trigger", text="Untrigger")
+                                                    
+                    row = layout.row()
+                    row.prop(rb, "use_kinematic_deactivation", text="Triggered")
                     row.prop(rb, "is_ghost")
-                    
+                                        
                     layout.prop(rb, "mass")
                 
 
