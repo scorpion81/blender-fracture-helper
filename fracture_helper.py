@@ -1,8 +1,8 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 1, 2),
-    "blender": (2, 78, 0),
+    "version": (2, 1, 3),
+    "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
     "warning": "",
@@ -15,7 +15,7 @@ import random
 from bpy_extras import view3d_utils
 from mathutils import Vector, Matrix
 
-def setup_particles(count=100):
+def setup_particles(count=150):
     ob = bpy.context.active_object
     bpy.ops.object.particle_system_add()
     #make particle system settings here....
@@ -157,11 +157,14 @@ class MainOperationsPanel(bpy.types.Panel):
                 layout.prop(rb, "type")
                 row = layout.row()
                 row.prop(rb, "kinematic", text="Animated")
+                row = layout.row()
+                row.prop(rb, "stop_trigger", text="Untrigger")
+                
                 if rb.type == "ACTIVE":
-                    row.prop(rb, "use_kinematic_deactivation", text="Triggered")
+                    row.prop(rb, "is_trigger")
                 
                     row = layout.row()
-                    row.prop(rb, "is_trigger")
+                    row.prop(rb, "use_kinematic_deactivation", text="Triggered")
                     row.prop(rb, "is_ghost")
                     
                     layout.prop(rb, "mass")
@@ -188,7 +191,7 @@ class VIEW3D_SettingsPanel(bpy.types.Panel):
             md = find_modifier(context.object, 'DYNAMIC_PAINT')
             if md and md.canvas_settings and "dp_canvas_FM" in md.canvas_settings.canvas_surfaces.keys():
                 surf = md.canvas_settings.canvas_surfaces["dp_canvas_FM"]
-                col.prop(surf, "show_preview", toggle=True, icon='RESTRICT_VIEW_OFF' if surf.show_preview else 'RESTRICT_VIEW_ON')
+                col.prop(surf, "show_preview", text="Toggle Dynamic Paint Preview", toggle=True, icon='RESTRICT_VIEW_OFF' if surf.show_preview else 'RESTRICT_VIEW_ON')
             
 class ViewOperatorFracture(bpy.types.Operator):
     """Modal mouse based object fracture"""
@@ -1232,13 +1235,13 @@ class SmokeSetupOperator(bpy.types.Operator):
                 pdata = psys.settings
                 psys.name = psys_name;
                 pdata.name = "SMOKE_Settings"
-                pdata.count = 500
+                pdata.count = 25000
                 
                 #pdata.frame_start = context.object.smokedebrisdust_emission_start
                 #pdata.frame_end = context.object.smokedebrisdust_emission_start + 10
-                pdata.frame_start = context.scene.emit_start
-                pdata.frame_end = context.scene.emit_end
-                pdata.lifetime = 1
+                pdata.frame_start = context.scene.frame_current
+                pdata.frame_end = context.scene.frame_current + 25
+                pdata.lifetime = 5
                 pdata.factor_random = 0
                 pdata.normal_factor = 0
                 pdata.tangent_phase = 0.1
@@ -1455,8 +1458,8 @@ class DustSetupOperator(bpy.types.Operator):
                 
                 #pdata.frame_start = context.object.smokedebrisdust_emission_start
                 #pdata.frame_end = context.object.smokedebrisdust_emission_start + 10
-                pdata.frame_start = context.scene.emit_start
-                pdata.frame_end = context.scene.emit_end
+                pdata.frame_start = context.scene.frame_current
+                pdata.frame_end = context.scene.frame_current + 25
                 pdata.lifetime = 75
                 pdata.lifetime_random = 0.60
                 pdata.factor_random = 0.85
@@ -1645,8 +1648,8 @@ class DebrisSetupOperator(bpy.types.Operator):
                 
                 #pdata.frame_start = context.object.smokedebrisdust_emission_start
                 #pdata.frame_end = context.object.smokedebrisdust_emission_start + 10
-                pdata.frame_start = context.scene.emit_start
-                pdata.frame_end = context.scene.emit_end
+                pdata.frame_start = context.scene.frame_current
+                pdata.frame_end = context.scene.frame_current + 25
                 pdata.lifetime = context.scene.frame_end
                 pdata.factor_random = 1
                 pdata.normal_factor = 0
@@ -1861,11 +1864,11 @@ class SmokeDebrisDustSetupPanel(bpy.types.Panel):
         layout = self.layout
         col = layout.column(align=True)
         row = col.row(align=True)
-        row.prop(context.scene, "emit_start", text="Emission Start")
-        row.prop(context.scene, "emit_end", text="Emission End")
+        row.prop(context.scene, "emit_start", text="All Emissions Start")
+        row.prop(context.scene, "emit_end", text="All Emissions End")
         if context.object and context.object.particle_systems.active:
             row = col.row(align=True)
-            row.prop(context.object.particle_systems.active.settings, "lifetime", text="Lifetime(Active)")
+            row.prop(context.object.particle_systems.active.settings, "lifetime", text="Lifetime (Only Active PSystem)")
         
         row = col.row(align=True)
         row.operator("fracture.setup_smoke", icon='MOD_SMOKE')
@@ -2163,7 +2166,8 @@ class MakeBrushOperator(bpy.types.Operator):
             
            
             brush = md.brush_settings
-            brush.paint_source = 'VOLUME_DISTANCE' 
+            brush.paint_source = 'VOLUME_DISTANCE'
+            brush.paint_distance = 0.2
         return {'FINISHED'}   
 
 class SetFadeBrushOperator(bpy.types.Operator):
