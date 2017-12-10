@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 1, 3),
+    "version": (2, 1, 4),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -1264,7 +1264,7 @@ class SmokeSetupOperator(bpy.types.Operator):
        
             #only do necessary setup here
             context.scene.objects.active = ob
-            bpy.ops.object.fracture_refresh(reset=True)    
+            #bpy.ops.object.fracture_refresh(reset=True)    
             
             #context.scene.objects.active = ob
             #bpy.ops.object.fracture_refresh(reset=True)
@@ -1294,10 +1294,12 @@ class SmokeSetupOperator(bpy.types.Operator):
                 
                 #first two materials (should be regular and inner one)
                 if context.scene.render.engine == 'BLENDER_RENDER':
-                    outer = ob.material_slots[0].material
-                    outer.use_transparent_shadows = True
-                    inner = ob.material_slots[1].material
-                    inner.use_transparent_shadows = True
+                    if len(ob.material_slots) > 0:
+                        outer = ob.material_slots[0].material
+                        outer.use_transparent_shadows = True
+                    if len(ob.material_slots) > 1:
+                        inner = ob.material_slots[1].material
+                        inner.use_transparent_shadows = True
                     
         #domain settings
         domainOb = context.active_object
@@ -1316,6 +1318,10 @@ class SmokeSetupOperator(bpy.types.Operator):
             domain.amplify = 1
             
             world = context.scene.rigidbody_world
+            if world is None:
+               bpy.ops.rigidbody.world_add()
+               world = context.scene.rigidbody_world
+                
             domain.point_cache.frame_start = world.point_cache.frame_start
             domain.point_cache.frame_end = world.point_cache.frame_end
         
