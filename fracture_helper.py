@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 1, 5),
+    "version": (2, 1, 6),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -2200,7 +2200,7 @@ class SetFadeBrushOperator(bpy.types.Operator):
         return {'FINISHED'}
     
 class ClusterVertexGroup(bpy.types.PropertyGroup):
-    cluster = bpy.props.IntProperty(name="cluster", description="Cluster Index")
+    cluster = bpy.props.IntProperty(name="cluster", description="Cluster Index", min=0)
     vertex_group = bpy.props.StringProperty(name="vertex_group", description="Vertex Group Name")
     
 
@@ -2210,8 +2210,8 @@ class AddCustomClusterOperator(bpy.types.Operator):
     bl_label = "Add Custom Cluster Slot"
     
     def execute(self, context):
-        count = len(context.scene.custom_clusters)
-        c = context.scene.custom_clusters.add()
+        count = len(context.object.custom_clusters)
+        c = context.object.custom_clusters.add()
         c.cluster = count
         c.vertex_group = ""
         
@@ -2225,7 +2225,7 @@ class RemoveCustomClusterOperator(bpy.types.Operator):
     index = bpy.props.IntProperty(name="index")
     
     def execute(self, context):
-        context.scene.custom_clusters.remove(self.index)
+        context.object.custom_clusters.remove(self.index)
             
         return {'FINISHED'}
 
@@ -2250,11 +2250,14 @@ class ApplyCustomClustersOperator(bpy.types.Operator):
             #find group name
             gn = context.object.vertex_groups[maxindex].name
             
-            for c in context.scene.custom_clusters:
-                if c.vertex_group == gn:
-                    print("Assign", mi.name, c.cluster)
-                    mi.cluster_index = c.cluster
-                    break        
+            if len(context.object.custom_clusters) == 0:
+                mi.cluster_index = 0        
+            else:
+                for c in context.object.custom_clusters:
+                    if c.vertex_group == gn:
+                        print("Assign", mi.name, c.cluster)
+                        mi.cluster_index = c.cluster
+                        break        
         
         return {'FINISHED'}
     
@@ -2267,16 +2270,15 @@ class CustomClusterPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        for i,c in enumerate(context.scene.custom_clusters):
-            row = layout.row(align=True)
+        col = layout.column(align=True)
+        for i,c in enumerate(context.object.custom_clusters):
+            row = col.row(align=True)
             row.prop_search(c, "vertex_group", context.object, "vertex_groups", text="")
             row.prop(c, "cluster", text="")
-            row.operator("fracture.custom_cluster_remove", text="", icon = 'ZOOMOUT').index = i;
+            row.operator("fracture.custom_cluster_remove", text="", icon='ZOOMOUT').index = i;
         
-        layout.operator("fracture.custom_cluster_add", text="", icon = 'ZOOMIN')
-        
-        if len(context.scene.custom_clusters) > 0:
-            layout.operator("fracture.custom_clusters_apply")
+        col.operator("fracture.custom_cluster_add", text="Add Cluster", icon = 'ZOOMIN')
+        col.operator("fracture.custom_clusters_apply", text="Apply Clusters", icon='FILE_TICK')
             
 def register():
     
@@ -2332,7 +2334,7 @@ def register():
     bpy.types.Scene.emit_start = bpy.props.IntProperty(name="emit_start", default=1, min=1, update=update_start_end)
     bpy.types.Scene.emit_end = bpy.props.IntProperty(name="emit_end", default=250, min=1, update=update_start_end)
     bpy.types.Scene.brush_fade = bpy.props.IntProperty(name="brush_fade", default=25, min=1)
-    bpy.types.Scene.custom_clusters = bpy.props.CollectionProperty(name="custom_clusters", type=ClusterVertexGroup)
+    bpy.types.Object.custom_clusters = bpy.props.CollectionProperty(name="custom_clusters", type=ClusterVertexGroup)
     
 def unregister():
     bpy.utils.unregister_class(MainOperationsPanel)
@@ -2383,7 +2385,7 @@ def unregister():
     del bpy.types.Scene.emit_start
     del bpy.types.Scene.emit_end
     del bpy.types.Scene.brush_fade
-    del bpy.types.Scene.custom_clusters
+    del bpy.types.Object.custom_clusters
     
     bpy.utils.unregister_class(ClusterVertexGroup)
 
