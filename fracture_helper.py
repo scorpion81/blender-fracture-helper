@@ -2289,7 +2289,7 @@ class CreateFluidOperator(bpy.types.Operator):
         if context.object is None:
             return {'CANCELLED'}
         
-        update_fluid(self, context)
+        make_fluid(self, context, True)
         return {'FINISHED'}
 
 class RemoveFluidOperator(bpy.types.Operator):
@@ -2316,6 +2316,7 @@ def remove_fluid(self, context):
     ob.modifiers.remove(md)
     
     bpy.ops.rigidbody.object_remove()
+    ob.simres = 10
 
 
 def has_fluid(self, context):
@@ -2339,6 +2340,9 @@ def update_size(self, context):
        rmd.mball_size[2] = ob.elemsize         
         
 def update_fluid(self, context):
+    make_fluid(self, context, False)
+        
+def make_fluid(self, context, create):
      is_new = False
      dim = context.object.dimensions
      maxdim = max(dim)
@@ -2349,14 +2353,17 @@ def update_fluid(self, context):
      if size == 0.0:
         size = 1
         
-     gridsize = [int(dim[0] / size), 
-                 int(dim[1] / size), 
-                 int(dim[2] / size)]
+     gridsize = [int(dim[0] / size) + 1,
+                 int(dim[1] / size) + 1, 
+                 int(dim[2] / size) + 1]
                  
      if not has_fluid(self, context):
-         fmd = context.object.modifiers.new(name="Fracture", type="FRACTURE")
-         rmd = context.object.modifiers.new(name="Fluid", type="REMESH")
-         is_new = True
+         if create:
+             fmd = context.object.modifiers.new(name="Fracture", type="FRACTURE")
+             rmd = context.object.modifiers.new(name="Fluid", type="REMESH")
+             is_new = True
+         else:
+            return
      else:
          fmd = context.object.modifiers["Fracture"]
          rmd = context.object.modifiers["Fluid"]
@@ -2377,6 +2384,7 @@ def update_fluid(self, context):
      rmd.mode = 'METABALL'
     
      if is_new:
+         #context.object.simres = 10
          rmd.use_smooth_shade = True
          rmd.mball_threshold = 2.0
          rmd.mball_resolution = 0.1
@@ -2384,6 +2392,7 @@ def update_fluid(self, context):
          rmd.mball_size[0] = size
          rmd.mball_size[1] = size
          rmd.mball_size[2] = size
+         context.object.elemsize = size
      
      
 class FakeFluidPanel(bpy.types.Panel):
