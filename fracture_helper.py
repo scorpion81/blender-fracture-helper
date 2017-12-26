@@ -2429,13 +2429,17 @@ class FakeFluidPanel(bpy.types.Panel):
             col = layout.column(align=True)
             ob = context.object
             rmd = ob.modifiers["Fluid"]
+            fmd = ob.modifiers["Fracture"]
             
+            col.prop(rmd, "show_viewport", text="Show Fluid")
             col.prop(ob, "simres", text="Domain Resolution")
             col.prop(ob, "elemsize", text="Element Size")
             col.prop(rmd, "mball_resolution", text="Viewport Resolution")
             col.prop(rmd, "mball_render_resolution", text="Render Resolution")
             col.prop(rmd, "mball_threshold", text="Dissolve")
+            
             layout.prop(rmd, "use_smooth_shade", text="Smooth")
+            layout.prop(fmd, "use_centroids", text="Center Verts")
             layout.operator("fracture.fluid_remove", icon="ZOOMOUT")
             
         else:
