@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 1, 6),
+    "version": (2, 1, 7),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -2279,7 +2279,142 @@ class CustomClusterPanel(bpy.types.Panel):
         
         col.operator("fracture.custom_cluster_add", text="Add Cluster", icon = 'ZOOMIN')
         col.operator("fracture.custom_clusters_apply", text="Apply Clusters", icon='FILE_TICK')
+        
+class CreateFluidOperator(bpy.types.Operator):
+    """Turns the Object into a fluid domain"""
+    bl_idname = "fracture.fluid_create"
+    bl_label = "Create Fluid Domain"
+    
+    def execute(self, context):
+        if context.object is None:
+            return {'CANCELLED'}
+        
+        update_fluid(self, context)
+        return {'FINISHED'}
+
+class RemoveFluidOperator(bpy.types.Operator):
+    """Removes the Fluid Domain from an object"""
+    bl_idname = "fracture.fluid_remove"
+    bl_label = "Remove Fluid Domain"
+    
+    def execute(self, context):
+        if context.object is None:
+            return {'CANCELLED'}
+        
+        if not has_fluid(self, context):
+            return {'CANCELLED'}
+        
+        remove_fluid(self, context)
+        return {'FINISHED'}    
+        
+def remove_fluid(self, context):
+    ob = context.object
+    md = ob.modifiers["Fluid"]
+    ob.modifiers.remove(md)
+    
+    md = ob.modifiers["Fracture"]
+    ob.modifiers.remove(md)
+    
+    bpy.ops.rigidbody.object_remove()
+
+
+def has_fluid(self, context):
+        md = find_modifier(context.object, "FRACTURE")
+        if md is None or md.name != "Fracture":
+            return False
+        md = find_modifier(context.object, "REMESH")
+        if (md is None) or (md.mode != 'METABALL') or md.name != "Fluid":
+            return False
+        return True       
+
+def update_size(self, context):
+    if context.object is None:
+        return
+    
+    if has_fluid(self, context):
+       ob = context.object    
+       rmd = context.object.modifiers["Fluid"]
+       rmd.mball_size[0] = ob.elemsize
+       rmd.mball_size[1] = ob.elemsize
+       rmd.mball_size[2] = ob.elemsize         
+        
+def update_fluid(self, context):
+     is_new = False
+     dim = context.object.dimensions
+     maxdim = max(dim)
+     size = maxdim / float(context.object.simres)
+     print(size)
+     
+     #sanity check
+     if size == 0.0:
+        size = 1
+        
+     gridsize = [int(dim[0] / size), 
+                 int(dim[1] / size), 
+                 int(dim[2] / size)]
+                 
+     if not has_fluid(self, context):
+         fmd = context.object.modifiers.new(name="Fracture", type="FRACTURE")
+         rmd = context.object.modifiers.new(name="Fluid", type="REMESH")
+         is_new = True
+     else:
+         fmd = context.object.modifiers["Fracture"]
+         rmd = context.object.modifiers["Fluid"]
+             
+     fmd.point_source = {'GRID'}
+     fmd.grid_resolution = gridsize
+     fmd.use_centroids = True
+     bpy.ops.object.transform_apply(location=False,rotation=False,scale=True) 
+     #bpy.ops.object.fracture_refresh(reset=True)
+     
+     rb = context.object.rigid_body
+     rb.collision_shape = 'SPHERE'
+     #rb.use_margin = True
+     #rb.collision_margin = size * 0.25
+     rb.friction = 0.0
+     #rb.use_random_margin = True
+     
+     rmd.mode = 'METABALL'
+    
+     if is_new:
+         rmd.use_smooth_shade = True
+         rmd.mball_threshold = 2.0
+         rmd.mball_resolution = 0.1
+         rmd.mball_render_resolution = 0.05
+         rmd.mball_size[0] = size
+         rmd.mball_size[1] = size
+         rmd.mball_size[2] = size
+     
+     
+class FakeFluidPanel(bpy.types.Panel):
+    bl_label = "Fake Fluid"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_category = "Fracture"
+    bl_options = {'DEFAULT_CLOSED'}
+    
+    def draw(self, context):
+        layout = self.layout
+        if context.object is None:
+           layout.label("Please select an object")
+           return
+        
+        if has_fluid(self, context):
+            col = layout.column(align=True)
+            ob = context.object
+            rmd = ob.modifiers["Fluid"]
             
+            col.prop(ob, "simres", text="Domain Resolution")
+            col.prop(ob, "elemsize", text="Element Size")
+            col.prop(rmd, "mball_resolution", text="Viewport Resolution")
+            col.prop(rmd, "mball_render_resolution", text="Render Resolution")
+            col.prop(rmd, "mball_threshold", text="Dissolve")
+            layout.prop(rmd, "use_smooth_shade", text="Smooth")
+            layout.operator("fracture.fluid_remove", icon="ZOOMOUT")
+            
+        else:
+            layout.operator("fracture.fluid_create", icon='MOD_FLUIDSIM')      
+                   
 def register():
     
     bpy.utils.register_class(MainOperationsPanel)
@@ -2312,6 +2447,9 @@ def register():
     bpy.utils.register_class(RemoveCustomClusterOperator)
     bpy.utils.register_class(ApplyCustomClustersOperator)
     bpy.utils.register_class(CustomClusterPanel)
+    bpy.utils.register_class(CreateFluidOperator)
+    bpy.utils.register_class(RemoveFluidOperator)
+    bpy.utils.register_class(FakeFluidPanel)
     
     bpy.types.Scene.use_animation_curve = bpy.props.BoolProperty(name="use_animation_curve", default=False)
     bpy.types.Scene.animation_obj = bpy.props.StringProperty(name="animation_obj", default = "")
@@ -2335,6 +2473,8 @@ def register():
     bpy.types.Scene.emit_end = bpy.props.IntProperty(name="emit_end", default=250, min=1, update=update_start_end)
     bpy.types.Scene.brush_fade = bpy.props.IntProperty(name="brush_fade", default=25, min=1)
     bpy.types.Object.custom_clusters = bpy.props.CollectionProperty(name="custom_clusters", type=ClusterVertexGroup)
+    bpy.types.Object.simres = bpy.props.IntProperty(name="simres", default=10, min=1, update=update_fluid)
+    bpy.types.Object.elemsize = bpy.props.FloatProperty(name="elemsize", default=0.1, min=0.01, update=update_size)
     
 def unregister():
     bpy.utils.unregister_class(MainOperationsPanel)
@@ -2367,6 +2507,10 @@ def unregister():
     bpy.utils.unregister_class(AddCustomClusterOperator)
     bpy.utils.unregister_class(RemoveCustomClusterOperator)
     bpy.utils.unregister_class(ApplyCustomClustersOperator)
+    
+    bpy.utils.unregister_class(CreateFluidOperator)
+    bpy.utils.unregister_class(RemoveFluidOperator)
+    bpy.utils.unregister_class(FakeFluidPanel)
    
     
        
@@ -2386,6 +2530,8 @@ def unregister():
     del bpy.types.Scene.emit_end
     del bpy.types.Scene.brush_fade
     del bpy.types.Object.custom_clusters
+    del bpy.types.Object.simres
+    del bpy.types.Object.elemsize
     
     bpy.utils.unregister_class(ClusterVertexGroup)
 
