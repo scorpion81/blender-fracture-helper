@@ -637,13 +637,15 @@ class FractureHelperPanel(bpy.types.Panel):
         layout = self.layout
         col = layout.column(align=True)
         row = layout.row(align=True)
+        systems = 0
                     
         #Other objects as helpers:
         col.label(text="Smaller shards using other object:", icon='PINNED')
         #col.operator("object.fracture_helper", icon='MOD_PARTICLES')
         #col.prop(context.object, "particle_amount", text="Particle amount")
         #col.prop(context.object, "particle_random", text="Particle random")
-        systems = len(context.object.particle_systems)
+        if context.object:
+            systems = len(context.object.particle_systems)
         col.operator("fracture.create_helper", icon='MOD_PARTICLES')
         if systems > 0:
             if systems > 1:
@@ -2345,6 +2347,7 @@ def update_fluid(self, context):
 def make_fluid(self, context, create):
      is_new = False
      dim = context.object.dimensions
+     dim = [round(dim[0], 1), round(dim[1], 1), round(dim[2], 1)]
      maxdim = max(dim)
      size = maxdim / float(context.object.simres)
      print(size)
@@ -2353,9 +2356,20 @@ def make_fluid(self, context, create):
      if size == 0.0:
         size = 1
         
-     gridsize = [int(dim[0] / size) + 1,
-                 int(dim[1] / size) + 1, 
-                 int(dim[2] / size) + 1]
+     gridsize = [int(dim[0] / size),
+                 int(dim[1] / size), 
+                 int(dim[2] / size)]
+                 
+     #sanity check             
+     if gridsize[0] == 0:
+        gridsize[0] = 1
+    
+     if gridsize[1] == 0:
+        gridsize[1] = 1
+        
+     if gridsize[2] == 0:
+        gridsize[2] = 1
+        
                  
      if not has_fluid(self, context):
          if create:
@@ -2367,6 +2381,7 @@ def make_fluid(self, context, create):
      else:
          fmd = context.object.modifiers["Fracture"]
          rmd = context.object.modifiers["Fluid"]
+         is_new = True
              
      fmd.point_source = {'GRID'}
      fmd.grid_resolution = gridsize
@@ -2375,10 +2390,12 @@ def make_fluid(self, context, create):
      #bpy.ops.object.fracture_refresh(reset=True)
      
      rb = context.object.rigid_body
-     rb.collision_shape = 'SPHERE'
-     #rb.use_margin = True
-     #rb.collision_margin = size * 0.25
-     rb.friction = 0.0
+     if rb is not None:
+         rb.collision_shape = 'SPHERE'
+         rb.use_margin = True
+         rb.collision_margin = 0.001
+         #rb.collision_margin = size * 0.25
+         rb.friction = 0.0
      #rb.use_random_margin = True
      
      rmd.mode = 'METABALL'
