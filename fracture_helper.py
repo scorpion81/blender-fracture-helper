@@ -2410,6 +2410,7 @@ def make_fluid(self, context, create):
          rmd.mball_size[1] = size
          rmd.mball_size[2] = size
          context.object.elemsize = size
+         rmd.input = {'VERTICES'}
      
      
 class FakeFluidPanel(bpy.types.Panel):
