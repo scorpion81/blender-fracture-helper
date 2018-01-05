@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 1, 7),
+    "version": (2, 1, 8),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -2382,6 +2382,15 @@ def make_fluid(self, context, create):
          fmd = context.object.modifiers["Fracture"]
          rmd = context.object.modifiers["Fluid"]
          is_new = True
+     
+     if (fmd is None or rmd is None):
+         if create:
+             self.report({'WARNING'}, 
+             "Please remove existing fracture or metaball remesher modifiers and retry adding fake fluid domain")
+             return
+         else:
+             print("No fracture modifier or metaball remesher found, please remove and add fake fluid domain")
+             return
              
      fmd.point_source = {'GRID'}
      fmd.grid_resolution = gridsize
