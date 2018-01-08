@@ -2283,9 +2283,9 @@ class CustomClusterPanel(bpy.types.Panel):
         col.operator("fracture.custom_clusters_apply", text="Apply Clusters", icon='FILE_TICK')
         
 class CreateFluidOperator(bpy.types.Operator):
-    """Turns the Object into a fluid domain"""
+    """Turns the Object into a fluid object"""
     bl_idname = "fracture.fluid_create"
-    bl_label = "Create Fluid Domain"
+    bl_label = "Create Fluid Object"
     
     def execute(self, context):
         if context.object is None:
@@ -2295,9 +2295,9 @@ class CreateFluidOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 class RemoveFluidOperator(bpy.types.Operator):
-    """Removes the Fluid Domain from an object"""
+    """Removes the Fluid Object from an object"""
     bl_idname = "fracture.fluid_remove"
-    bl_label = "Remove Fluid Domain"
+    bl_label = "Remove Fluid Object"
     
     def execute(self, context):
         if context.object is None:
@@ -2442,7 +2442,7 @@ class FakeFluidPanel(bpy.types.Panel):
             fmd = ob.modifiers["Fracture"]
             
             col.prop(rmd, "show_viewport", text="Show Fluid")
-            col.prop(ob, "simres", text="Domain Resolution")
+            col.prop(ob, "simres", text="Divisions")
             col.prop(ob, "elemsize", text="Element Size")
             col.prop(rmd, "mball_resolution", text="Viewport Resolution")
             col.prop(rmd, "mball_render_resolution", text="Render Resolution")
