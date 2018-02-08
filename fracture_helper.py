@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 1, 8),
+    "version": (2, 1, 9),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -746,6 +746,19 @@ class TimingPanel(bpy.types.Panel):
 #    if len(context.object.particle_systems) > 0:
 #       context.object.particle_systems[0].settings.factor_random = context.object.particle_random
 
+def store_rb_to_dict(ob):
+    d = {}
+    for k in ob.rigid_body.bl_rna.properties.keys():
+        if k != "rna_type":
+          d[k] = getattr(ob.rigid_body, k)
+          
+    return d
+          
+def load_rb_from_dict(ob, d):
+    for k in ob.rigid_body.bl_rna.properties.keys():
+        if k != "rna_type":
+          setattr(ob.rigid_body, k, d[k])      
+
 
 class FractureFrameOperator(bpy.types.Operator):
     """Tooltip"""
@@ -755,6 +768,7 @@ class FractureFrameOperator(bpy.types.Operator):
     def execute(self, context):
         if context.object is not None:
             mod = False
+            d = {}
             for md in context.object.modifiers:
                 if md.type == 'FRACTURE':
                     mod = True
@@ -795,6 +809,8 @@ class FractureFrameOperator(bpy.types.Operator):
             bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
             
             context.object.rigid_body.kinematic = False
+            
+            d = store_rb_to_dict(context.object)
             if (context.scene.is_dynamic):
                 bpy.ops.rigidbody.bake_to_keyframes('EXEC_DEFAULT', frame_start=1, frame_end=frame_end, step=1)
                           
@@ -802,6 +818,7 @@ class FractureFrameOperator(bpy.types.Operator):
            
             bpy.ops.rigidbody.objects_add(type='ACTIVE')
             #context.object.select = False
+            load_rb_from_dict(context.object, d)
                  
             context.object.rigid_body.kinematic = True
             context.object.keyframe_insert(data_path="rigid_body.kinematic")
