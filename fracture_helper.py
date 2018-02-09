@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 1, 9),
+    "version": (2, 2, 0),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -779,6 +779,7 @@ class FractureFrameOperator(bpy.types.Operator):
                 return {'CANCELLED'}
                 
             #if FractureMod, then save preset (FrameHelperPreset) and remove mod
+            bpy.ops.object.fracture_refresh(reset=True)
             ctx = context.copy()
             ctx["fracture"] = md
             bpy.ops.fracture.preset_add(ctx, name="helperpreset")
