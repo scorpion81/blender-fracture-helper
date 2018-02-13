@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 2, 0),
+    "version": (2, 2, 1),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -621,7 +621,8 @@ class FracturePathPanel(bpy.types.Panel):
         col.separator()
         
         col.label("Combination:", icon='PINNED')
-        col.operator("fracture.combine_subobjects",icon='GROUP')
+        col.operator("fracture.combine_subobjects",text="Combine",icon='GROUP').constraints_only=False
+        col.operator("fracture.combine_subobjects",text="Connect",icon='EMPTY_DATA').constraints_only=True
 
 
 ### from now much stuff is put into a common panel,  its better than having separate panels for everything
@@ -1090,9 +1091,13 @@ class CombineSubObjectsOperator(bpy.types.Operator):
     bl_idname = "fracture.combine_subobjects"
     bl_label = "Combine Sub Objects"
     
+    constraints_only = bpy.props.BoolProperty(name="constraints_only", default=False)
+    
     def execute(self, context):
         #prepare objects
-        context.scene.layers[17] = True
+        if (self.constraints_only == False):
+            context.scene.layers[17] = True
+            
         gr = bpy.data.groups.new("CombinationGroup")
         for ob in context.selected_objects:
 
@@ -1100,24 +1105,33 @@ class CombineSubObjectsOperator(bpy.types.Operator):
              context.scene.objects.active = ob
              for md in ob.modifiers:
                 if (md.type == 'FRACTURE'):
+                   md.contact_dist = 0.1    
+                   md.constraint_target = 'VERTEX'
+                   md.solver_iterations_override = 30
+                   md.use_constraints = self.constraints_only    
                    bpy.ops.object.fracture_refresh(reset=True)
                    
-                   #stop simulation and interaction
-                   ob.rigid_body.kinematic = True
-                   ob.rigid_body.is_ghost = True
+                   if (self.constraints_only == False):
+                        #stop simulation and interaction
+                        ob.rigid_body.kinematic = True
+                        ob.rigid_body.is_ghost = True
+                        
                    break
                 elif ob.rigid_body != None:
                    #stop simulation and interaction (regular rigidbodies)
+                   #unsure, doesnt work without FM here, keep as is
                    ob.rigid_body.kinematic = True
                    ob.rigid_body.is_ghost = True
-                   
-             ob.layers[17] = True
-             for x in range(0, 19):
-                if x != 17:
-                    ob.layers[x] = False
+             
+             if (self.constraints_only == False):       
+                ob.layers[17] = True
+                for x in range(0, 19):
+                    if x != 17:
+                        ob.layers[x] = False
         
         #context.scene.update()
-        context.scene.layers[17] = False
+        if (self.constraints_only == False):
+            context.scene.layers[17] = False
         
         if len(gr.objects) == 0:
             self.report({'WARNING'}, "Found no selected object with a fracture modifier") 
@@ -1126,13 +1140,20 @@ class CombineSubObjectsOperator(bpy.types.Operator):
         #create carrier object at 0, 0, 0 -> transformations are taken into account
         bpy.ops.mesh.primitive_cube_add()
         active = context.active_object
-        active.layers[0] = True
-        active.layers[17] = False
+        active.name = "Combiner"
+        if (self.constraints_only == False):
+            active.layers[0] = True
+            active.layers[17] = False
         
         bpy.ops.object.modifier_add(type='FRACTURE')
-        md = active.modifiers[0]
+        md = active.modifiers["Fracture"]
         md.point_source = set()
         md.dm_group = gr
+        md.use_constraint_group = self.constraints_only
+        md.contact_dist = 0.1
+        md.constraint_target = 'VERTEX'
+        md.solver_iterations_override = 30
+        md.use_constraints = self.constraints_only
         bpy.ops.object.fracture_refresh(reset=True)
         
         return {'FINISHED'}
