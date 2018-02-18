@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 2, 1),
+    "version": (2, 2, 2),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -1087,7 +1087,7 @@ class DisplacementEdgesOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 class CombineSubObjectsOperator(bpy.types.Operator):
-    """Combine multiple Fractured objects into one object"""
+    """Combine multiple Fractured objects into one object or connect with external constraints"""
     bl_idname = "fracture.combine_subobjects"
     bl_label = "Combine Sub Objects"
     
@@ -1140,10 +1140,17 @@ class CombineSubObjectsOperator(bpy.types.Operator):
         #create carrier object at 0, 0, 0 -> transformations are taken into account
         bpy.ops.mesh.primitive_cube_add()
         active = context.active_object
-        active.name = "Combiner"
+        active.name = "FM-GroupConnector"
         if (self.constraints_only == False):
             active.layers[0] = True
             active.layers[17] = False
+        else:
+            context.scene.layers[19] = True
+            active.layers[0] = False
+            active.layers[19] = True
+            active.show_x_ray = True
+            active.draw_type = 'BOUNDS'
+            active.show_name = True
         
         bpy.ops.object.modifier_add(type='FRACTURE')
         md = active.modifiers["Fracture"]
