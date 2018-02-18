@@ -1146,8 +1146,8 @@ class CombineSubObjectsOperator(bpy.types.Operator):
             active.layers[17] = False
         else:
             context.scene.layers[19] = True
-            active.layers[0] = False
             active.layers[19] = True
+            active.layers[0] = False
             active.show_x_ray = True
             active.draw_type = 'BOUNDS'
             active.show_name = True
