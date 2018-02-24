@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 2, 2),
+    "version": (2, 2, 3),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -1097,17 +1097,22 @@ class CombineSubObjectsOperator(bpy.types.Operator):
         #prepare objects
         if (self.constraints_only == False):
             context.scene.layers[17] = True
+        
+        if self.constraints_only:
+            gr = bpy.data.groups.new("ConnectorGroup")
+        else:
+            gr = bpy.data.groups.new("CombinationGroup")
             
-        gr = bpy.data.groups.new("CombinationGroup")
         for ob in context.selected_objects:
 
              gr.objects.link(ob)
              context.scene.objects.active = ob
+             modFound = False
              for md in ob.modifiers:
                 if (md.type == 'FRACTURE'):
                    md.contact_dist = 0.1    
                    md.constraint_target = 'VERTEX'
-                   md.solver_iterations_override = 30
+                   #md.solver_iterations_override = 30
                    md.use_constraints = self.constraints_only    
                    bpy.ops.object.fracture_refresh(reset=True)
                    
@@ -1116,12 +1121,14 @@ class CombineSubObjectsOperator(bpy.types.Operator):
                         ob.rigid_body.kinematic = True
                         ob.rigid_body.is_ghost = True
                         
+                   modFound = True     
                    break
-                elif ob.rigid_body != None:
-                   #stop simulation and interaction (regular rigidbodies)
-                   #unsure, doesnt work without FM here, keep as is
-                   ob.rigid_body.kinematic = True
-                   ob.rigid_body.is_ghost = True
+                    
+             if not modFound and ob.rigid_body != None:
+                #stop simulation and interaction (regular rigidbodies)
+                #unsure, doesnt work without FM here, keep as is
+                ob.rigid_body.kinematic = True
+                ob.rigid_body.is_ghost = True
              
              if (self.constraints_only == False):       
                 ob.layers[17] = True
@@ -1159,7 +1166,7 @@ class CombineSubObjectsOperator(bpy.types.Operator):
         md.use_constraint_group = self.constraints_only
         md.contact_dist = 0.1
         md.constraint_target = 'VERTEX'
-        md.solver_iterations_override = 30
+        #md.solver_iterations_override = 30
         md.use_constraints = self.constraints_only
         bpy.ops.object.fracture_refresh(reset=True)
         
