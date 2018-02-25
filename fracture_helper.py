@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 2, 3),
+    "version": (2, 2, 4),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -1110,9 +1110,6 @@ class CombineSubObjectsOperator(bpy.types.Operator):
              modFound = False
              for md in ob.modifiers:
                 if (md.type == 'FRACTURE'):
-                   md.contact_dist = 0.1    
-                   md.constraint_target = 'VERTEX'
-                   #md.solver_iterations_override = 30
                    md.use_constraints = self.constraints_only    
                    bpy.ops.object.fracture_refresh(reset=True)
                    
@@ -1164,9 +1161,6 @@ class CombineSubObjectsOperator(bpy.types.Operator):
         md.point_source = set()
         md.dm_group = gr
         md.use_constraint_group = self.constraints_only
-        md.contact_dist = 0.1
-        md.constraint_target = 'VERTEX'
-        #md.solver_iterations_override = 30
         md.use_constraints = self.constraints_only
         bpy.ops.object.fracture_refresh(reset=True)
         
