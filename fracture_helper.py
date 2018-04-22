@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
-    "author": "scorpion81 and Dennis Fassbaender",
-    "version": (2, 2, 4),
+    "author": "scorpion81 and Dennis Fassbaender and JTa Nelson",
+    "version": (2, 2, 5),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -15,6 +15,55 @@ import random
 from bpy_extras import view3d_utils
 from mathutils import Vector, Matrix
 
+
+# Pie Fracture
+class PieFracture(bpy.types.Menu):
+    bl_idname = "pie.fracture"
+    bl_label = "Pie Fracture"
+
+    def draw(self, context):
+        layout = self.layout
+        pie = layout.menu_pie()
+        # 4 - LEFT --dun
+        pie.operator("fracture.create_cluster_helpers", text="Rough Edges Phys", icon='FCURVE')
+        # 6 - RIGHT  --WIP needs lots of code
+        pie.operator("fracture.setup_dust", text="Dust(WIP)", icon='STICKY_UVS_VERT')
+        # 2 - BOTTOM  --dun
+        pie.operator("object.modifier_remove", text="Remove Fracture", icon='X').modifier = "Fracture"
+        # 8 - TOP **TODO** make toggle of add fm or refracture in context - object.fracture_pie_refresh
+        pie.operator("fracture.execute", text="(Re)fracture", icon='MOD_EXPLODE')
+        # 7 - TOP - LEFT  --use default rb add passive for now **TODO** change to more robust rb handling
+        pie.operator("rigidbody.objects_add", text="Rigidbody Passive", icon='MESH_ICOSPHERE').type='PASSIVE'
+        # 9 - TOP - RIGHT  --WIP needs lots of code
+        pie.operator("fracture.setup_smoke", text="Inner Smoke(WIP)", icon='MOD_SMOKE')
+        # 1 - BOTTOM - LEFT  --dun
+        pie.operator("fracture.create_displaced_edges", text="Rough Edges Sim'd", icon='FCURVE')
+        # 3 - BOTTOM - RIGHT  --WIP needs lots of code
+        pie.operator("fracture.setup_debris", text="Debris(WIP)", icon="STICKY_UVS_DISABLE")
+
+def update_pie_registration(self, context):
+    if bpy.context.user_preferences.addons["fracture_helper"].preferences.use_pie_menu:
+        register_pie_keymaps()
+    else:
+        unregister_pie_keymaps()
+
+                
+class FractureHelperPreferences(bpy.types.AddonPreferences):
+    # this must match the addon name, use '__package__'
+    # when defining this in a submodule of a python package.
+    bl_idname = __name__
+
+    use_pie_menu = bpy.props.BoolProperty(
+            name="Use Pie Menu",
+            default=False,
+            update=update_pie_registration
+            )
+            
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "use_pie_menu")
+        
+   
 def setup_particles(count=150):
     ob = bpy.context.active_object
     bpy.ops.object.particle_system_add()
@@ -242,7 +291,7 @@ class ViewOperatorFracture(bpy.types.Operator):
                         bpy.ops.object.editmode_toggle()
              
                         radius += 0.1
-                        for r in range(self.act.mouse_rings):
+                        for r in range(context.scene.mouse_rings):
                             bpy.ops.mesh.primitive_circle_add(radius=radius, \
                                                               vertices=context.scene.mouse_segments, \
                                                               location=hit)
@@ -2501,6 +2550,32 @@ class FakeFluidPanel(bpy.types.Panel):
             
         else:
             layout.operator("fracture.fluid_create", icon='MOD_FLUIDSIM')      
+            
+addon_keymaps = []
+            
+def register_pie_keymaps():
+    
+    bpy.utils.register_class(PieFracture)
+    
+    wm = bpy.context.window_manager
+    if wm.keyconfigs.addon:
+        # Fracture
+        km = wm.keyconfigs.addon.keymaps.new(name='Object Non-modal')
+        kmi = km.keymap_items.new('wm.call_menu_pie', 'F', 'PRESS', alt=True)
+        kmi.properties.name = "pie.fracture"
+        addon_keymaps.append((km, kmi))
+        
+def unregister_pie_keymaps():
+    
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.addon
+    if kc:
+        for km, kmi in addon_keymaps:
+            km.keymap_items.remove(kmi)
+    addon_keymaps.clear()
+    
+    bpy.utils.unregister_class(PieFracture)
+    
                    
 def register():
     
@@ -2537,6 +2612,8 @@ def register():
     bpy.utils.register_class(CreateFluidOperator)
     bpy.utils.register_class(RemoveFluidOperator)
     bpy.utils.register_class(FakeFluidPanel)
+    bpy.utils.register_class(FractureHelperPreferences)
+     
     
     bpy.types.Scene.use_animation_curve = bpy.props.BoolProperty(name="use_animation_curve", default=False)
     bpy.types.Scene.animation_obj = bpy.props.StringProperty(name="animation_obj", default = "")
@@ -2598,8 +2675,9 @@ def unregister():
     bpy.utils.unregister_class(CreateFluidOperator)
     bpy.utils.unregister_class(RemoveFluidOperator)
     bpy.utils.unregister_class(FakeFluidPanel)
-   
     
+    bpy.utils.unregister_class(FractureHelperPreferences)
+         
        
     del bpy.types.Scene.use_animation_curve
     del bpy.types.Scene.animation_obj
