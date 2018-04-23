@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender and JTa Nelson",
-    "version": (2, 2, 5),
+    "version": (2, 2, 6),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -42,7 +42,7 @@ class PieFracture(bpy.types.Menu):
         pie.operator("fracture.setup_debris", text="Debris(WIP)", icon="STICKY_UVS_DISABLE")
 
 def update_pie_registration(self, context):
-    if bpy.context.user_preferences.addons["fracture_helper"].preferences.use_pie_menu:
+    if bpy.context.user_preferences.addons[__name__].preferences.use_pie_menu:
         register_pie_keymaps()
     else:
         unregister_pie_keymaps()
@@ -2613,6 +2613,9 @@ def register():
     bpy.utils.register_class(RemoveFluidOperator)
     bpy.utils.register_class(FakeFluidPanel)
     bpy.utils.register_class(FractureHelperPreferences)
+    
+    if bpy.context.user_preferences.addons[__name__].preferences.use_pie_menu:
+        register_pie_keymaps()
      
     
     bpy.types.Scene.use_animation_curve = bpy.props.BoolProperty(name="use_animation_curve", default=False)
@@ -2675,6 +2678,9 @@ def unregister():
     bpy.utils.unregister_class(CreateFluidOperator)
     bpy.utils.unregister_class(RemoveFluidOperator)
     bpy.utils.unregister_class(FakeFluidPanel)
+    
+    if bpy.context.user_preferences.addons[__name__].preferences.use_pie_menu:
+        unregister_pie_keymaps()
     
     bpy.utils.unregister_class(FractureHelperPreferences)
          
