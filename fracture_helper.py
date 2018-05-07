@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender and JTa Nelson",
-    "version": (2, 2, 6),
+    "version": (2, 2, 7),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -2047,10 +2047,10 @@ class SetTimeScaleOperator(bpy.types.Operator):
                     md.particle_system.settings.keyframe_insert(data_path="timestep")
                 
             #FLIP Fluid compat    
-            if hasattr(o, "flip_fluid_object"):
-                if hasattr(o.flip_fluid_object, "domain"):
-                    o.flip_fluid_object.domain.time_scale = bpy.context.scene.time_scale / 100
-                    o.keyframe_insert(data_path="flip_fluid_object.domain.time_scale") 
+            if hasattr(o, "flip_fluid"):
+                if hasattr(o.flip_fluid, "domain"):
+                    o.flip_fluid.domain.simulation.time_scale = bpy.context.scene.time_scale / 100
+                    o.keyframe_insert(data_path="flip_fluid.domain.simulation.time_scale") 
     
         #special case rigidbody, this is located at context.scene.rigidbody_world
         if bpy.context.scene.rigidbody_world is not None:
@@ -2095,9 +2095,9 @@ class ClearTimeScaleOperator(bpy.types.Operator):
                         pass 
                 
             #FLIP Fluid compat    
-            if hasattr(o, "flip_fluid_object"):
-                if hasattr(o.flip_fluid_object, "domain"):
-                    o.keyframe_delete(data_path="flip_fluid_object.domain.time_scale")
+            if hasattr(o, "flip_fluid"):
+                if hasattr(o.flip_fluid, "domain"):
+                    o.keyframe_delete(data_path="flip_fluid.domain.simulation.time_scale")
     
         #special case rigidbody, this is located at context.scene.rigidbody_world
         if bpy.context.scene.rigidbody_world is not None:
@@ -2145,10 +2145,10 @@ class ClearAllTimeScaleOperator(bpy.types.Operator):
                         pass
             
             #FLIP Fluid compat    
-            if hasattr(o, "flip_fluid_object"):
-                if hasattr(o.flip_fluid_object, "domain"):
-                    o.flip_fluid_object.domain.time_scale = 1.0
-                    delete_keyframes(bpy.context, o, "flip_fluid_object.domain.time_scale") 
+            if hasattr(o, "flip_fluid"):
+                if hasattr(o.flip_fluid, "domain"):
+                    o.flip_fluid.domain.simulation.time_scale = 1.0
+                    delete_keyframes(bpy.context, o, "flip_fluid.domain.simulation.time_scale") 
     
         #special case rigidbody, this is located at context.scene.rigidbody_world
         if bpy.context.scene.rigidbody_world is not None:
@@ -2197,10 +2197,10 @@ class ApplyTimeScaleOperator(bpy.types.Operator):
                                 md.particle_system.settings.keyframe_insert(data_path="timestep")
                             
                         #FLIP Fluid compat    
-                        if hasattr(o, "flip_fluid_object"):
-                            if hasattr(o.flip_fluid_object, "domain"):
-                                o.flip_fluid_object.domain.time_scale = keyf.co[1] / 100
-                                o.keyframe_insert(data_path="flip_fluid_object.domain.time_scale") 
+                        if hasattr(o, "flip_fluid"):
+                            if hasattr(o.flip_fluid, "domain"):
+                                o.flip_fluid.domain.simulation.time_scale = keyf.co[1] / 100
+                                o.keyframe_insert(data_path="flip_fluid.domain.simulation.time_scale") 
                 
                     #special case rigidbody, this is located at context.scene.rigidbody_world
                     if bpy.context.scene.rigidbody_world is not None:
@@ -2228,9 +2228,9 @@ def update_timescale(self, context):
                 md.particle_system.settings.timestep = bpy.context.object.time_scale / 100 * 0.04
             
         # FLIP FLUID compat
-        if hasattr(o, "flip_fluid_object"):
-            if hasattr(o.flip_fluid_object, "domain"):
-                o.flip_fluid_object.domain.time_scale = bpy.context.object.time_scale / 100 
+        if hasattr(o, "flip_fluid"):
+            if hasattr(o.flip_fluid, "domain"):
+                o.flip_fluid.domain.simulation.time_scale = bpy.context.object.time_scale / 100 
     
     #special case rigidbody, this is located at context.scene.rigidbody_world
     if bpy.context.scene.rigidbody_world is not None:
