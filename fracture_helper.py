@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender and JTa Nelson",
-    "version": (2, 2, 8),
+    "version": (2, 2, 9),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -466,6 +466,21 @@ def main(context, start=1, random=0.0, snap=True):
        bpy.ops.view3d.snap_cursor_to_active()
               
    bpy.ops.object.duplicate()
+   #apply rigidbody rotation for all selected objs
+   
+   for ob in context.selected_objects:
+       if ob != act: 
+           #if we have an FM, apply it
+           md = find_modifier(ob, 'FRACTURE')
+           if md is not None:
+               context.scene.objects.active = ob
+               bpy.ops.object.modifier_apply(apply_as='DATA', modifier=md.name)
+               context.scene.objects.active = act
+           else:
+               mat = Matrix.Translation(ob.rigid_body.location).to_3x3()
+               mat.rotate(ob.rigid_body.rotation)
+               ob.matrix_world = mat.to_4x4()
+               
    bpy.ops.anim.keyframe_clear_v3d()   
    bpy.ops.rigidbody.objects_remove()
    
