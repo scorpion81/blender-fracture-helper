@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender and JTa Nelson",
-    "version": (2, 2, 9),
+    "version": (2, 3, 0),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -476,7 +476,7 @@ def main(context, start=1, random=0.0, snap=True):
                context.scene.objects.active = ob
                bpy.ops.object.modifier_apply(apply_as='DATA', modifier=md.name)
                context.scene.objects.active = act
-           else:
+           elif ob.rigid_body is not None:
                mat = Matrix.Translation(ob.rigid_body.location).to_3x3()
                mat.rotate(ob.rigid_body.rotation)
                ob.matrix_world = mat.to_4x4()
