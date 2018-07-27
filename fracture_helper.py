@@ -492,6 +492,7 @@ def main(context, start=1, random=0.0, snap=True):
             ob.hide_render = True
             ob.show_name = True
             ob.show_x_ray = True
+            ob.show_wire = False
             ob.name = ob.name.split(".")[0] + "_helper"
             ob.layers[19] = True
             for x in range(0, 19):
