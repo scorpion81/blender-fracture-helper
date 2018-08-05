@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender and JTa Nelson",
-    "version": (2, 3, 0),
+    "version": (2, 3, 1),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -2578,15 +2578,8 @@ class CreateClothOperator(bpy.types.Operator):
         
         #add FM, voronoi + bisect
         ob = context.object
-        smd = find_modifier(ob, "SUBSURF")
-        if smd is None:
-            smd = ob.modifiers.new(type="SUBSURF", name="Subsurf")
         
-        smd.levels = 2
-        
-        tmd = find_modifier(ob, "TRIANGULATE")
-        if tmd is None:
-            tmd = ob.modifiers.new(type="TRIANGULATE", name="Triangulate")
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
         
         md = find_modifier(ob, "FRACTURE")
         if md is not None:
@@ -2594,38 +2587,45 @@ class CreateClothOperator(bpy.types.Operator):
             
         md = ob.modifiers.new(type="FRACTURE", name="Fracture")
         
+        
+        sm = find_modifier(ob, "CORRECTIVE_SMOOTH")
+        if sm is None:
+            sm = ob.modifiers.new(type="CORRECTIVE_SMOOTH", name="Corrective Smooth")
+            
+        sm.factor = 1.0
+        sm.iterations = 20
+        sm.use_only_smooth = True
+        sm.use_pin_boundary = True
+        sm.smooth_type = 'LENGTH_WEIGHTED'
+        
         #fracture settings
-        md.shard_count = 2000
+        md.shard_count = 1000
         md.inner_crease = 1.0
         md.frac_algorithm = 'BISECT'
         
+        #passive vg = pinning
+        md.ground_vertex_group = ob.clothpin
+        
         #constraint settings
-        md.contact_dist = 0.1
+        md.contact_dist = 0.5
         md.constraint_type = 'POINT'
         md.constraint_target = 'VERTEX'
-        md.constraint_limit = 10
+        md.constraint_limit = 25
         
-        md.cluster_count = 10
+        md.cluster_count = 25
         md.cluster_constraint_type = 'POINT'
         md.use_self_collision = True
         md.use_constraints = True
         
         #tearable, e.g with angle
-        md.cluster_breaking_angle = math.radians(2.0)
-        md.breaking_distance = 0.2
+        md.cluster_breaking_angle = math.radians(40)
         
         #autohide settings
         md.autohide_dist = 0.0001
-        md.automerge_dist = 0.25
+        md.automerge_dist = 0.50
         md.do_merge = True
         
-        sm = find_modifier(ob, "SMOOTH")
-        if sm is None:
-            sm = ob.modifiers.new(type="SMOOTH", name="Smooth")
-            
-        sm.factor = 2.0
-        sm.iterations = 10
-        
+
         bpy.ops.object.shade_smooth()
         bpy.ops.object.fracture_refresh(reset=True)
         ob.rigid_body.use_kinematic_deactivation=True
@@ -2641,6 +2641,7 @@ class FakeClothPanel(bpy.types.Panel):
     
     def draw(self, context):
         layout = self.layout
+        layout.prop_search(context.object, "clothpin", context.object, "vertex_groups", text="Pin", icon='GROUP_VERTEX')
         layout.operator("fracture.cloth_create", icon='MOD_CLOTH')      
             
 addon_keymaps = []
@@ -2736,6 +2737,7 @@ def register():
     bpy.types.Object.custom_clusters = bpy.props.CollectionProperty(name="custom_clusters", type=ClusterVertexGroup)
     bpy.types.Object.simres = bpy.props.IntProperty(name="simres", default=10, min=1, update=update_fluid)
     bpy.types.Object.elemsize = bpy.props.FloatProperty(name="elemsize", default=0.1, min=0.01, update=update_size)
+    bpy.types.Object.clothpin = bpy.props.StringProperty(name="clothpin", default="")
     
 def unregister():
     bpy.utils.unregister_class(MainOperationsPanel)
@@ -2800,6 +2802,7 @@ def unregister():
     del bpy.types.Object.custom_clusters
     del bpy.types.Object.simres
     del bpy.types.Object.elemsize
+    del bpy.types.Object.clothpin
     
     bpy.utils.unregister_class(ClusterVertexGroup)
 
