@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender and JTa Nelson",
-    "version": (2, 3, 1),
+    "version": (2, 3, 2),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -2562,7 +2562,7 @@ class FakeFluidPanel(bpy.types.Panel):
             
             layout.prop(rmd, "use_smooth_shade", text="Smooth")
             layout.prop(fmd, "use_centroids", text="Center Verts")
-            layout.operator("fracture.fluid_remove", icon="ZOOMOUT")
+            layout.operator("fracture.fluid_remove", icon="X")
             
         else:
             layout.operator("fracture.fluid_create", icon='MOD_FLUIDSIM')
@@ -2590,7 +2590,7 @@ class CreateClothOperator(bpy.types.Operator):
         
         sm = find_modifier(ob, "CORRECTIVE_SMOOTH")
         if sm is None:
-            sm = ob.modifiers.new(type="CORRECTIVE_SMOOTH", name="Corrective Smooth")
+            sm = ob.modifiers.new(type="CORRECTIVE_SMOOTH", name="Cloth Smooth")
             
         sm.factor = 1.0
         sm.iterations = 20
@@ -2602,9 +2602,6 @@ class CreateClothOperator(bpy.types.Operator):
         md.shard_count = 1000
         md.inner_crease = 1.0
         md.frac_algorithm = 'BISECT'
-        
-        #passive vg = pinning
-        md.ground_vertex_group = ob.clothpin
         
         #constraint settings
         md.contact_dist = 0.5
@@ -2632,6 +2629,84 @@ class CreateClothOperator(bpy.types.Operator):
             
         return {'FINISHED'}
     
+class RemoveClothOperator(bpy.types.Operator):
+    """Removes the Cloth setup from the object"""
+    bl_idname = "fracture.cloth_remove"
+    bl_label = "Remove Cloth"
+    
+    def execute(self, context):
+        if context.object is None:
+            return {'CANCELLED'}
+        if has_cloth(self, context):
+            remove_cloth(self, context)
+            return {'FINISHED'}
+        return {'CANCELLED'}
+
+def has_cloth(self, context):
+    if context.object is None:
+        return False
+    md = find_modifier(context.object, "FRACTURE")
+    if md is None or md.name != "Fracture":
+        return False
+    md = find_modifier(context.object, "CORRECTIVE_SMOOTH")
+    if md is None or md.name != "Cloth Smooth":
+        return False
+    return True       
+    
+def remove_cloth(self, context):
+    ob = context.object
+    md = ob.modifiers["Fracture"]
+    ob.modifiers.remove(md)
+    
+    md = ob.modifiers["Cloth Smooth"]
+    ob.modifiers.remove(md)
+    
+    bpy.ops.rigidbody.object_remove()
+    ob.clothpin = ""
+    ob.cloth_bending_mode
+
+def update_pin(self, context):
+    #change pin needs refracture
+    #passive vg = pinning
+    ob = context.object
+    if ob is None:
+        return
+    
+    md = ob.modifiers["Fracture"]
+    if md is None:
+        return
+    
+    md.ground_vertex_group = ob.clothpin
+    bpy.ops.object.fracture_refresh(reset=True)
+
+def update_bend(self, context):
+    ob = context.object
+    md = find_modifier(ob, "FRACTURE")
+    if md is None:
+        return
+    
+    if ob.cloth_bending_mode == "Stiff":
+        md.constraint_target = 'CENTROID'
+        md.constraint_type = 'FIXED'
+        md.cluster_constraint_type = 'FIXED'
+        md.constraint_limit = 25
+        md.contact_dist = 2
+        md.cluster_breaking_percentage = 85
+        md.cluster_breaking_angle = math.radians(10)
+        md.activate_broken = True
+        ob.rigid_body.kinematic = True
+    elif ob.cloth_bending_mode == "Bendable":
+        md.contact_dist = 0.5
+        md.constraint_target = 'VERTEX'
+        md.constraint_type = 'POINT'
+        md.cluster_constraint_type = 'POINT'
+        md.constraint_limit = 25
+        md.cluster_breaking_percentage = 0
+        md.cluster_breaking_angle = math.radians(40)
+        md.activate_broken = False
+        ob.rigid_body.kinematic = False
+    
+    
 class FakeClothPanel(bpy.types.Panel):
     bl_label = "Fake Cloth"
     bl_space_type = "VIEW_3D"
@@ -2641,8 +2716,43 @@ class FakeClothPanel(bpy.types.Panel):
     
     def draw(self, context):
         layout = self.layout
-        layout.prop_search(context.object, "clothpin", context.object, "vertex_groups", text="Pin", icon='GROUP_VERTEX')
-        layout.operator("fracture.cloth_create", icon='MOD_CLOTH')      
+        
+        if context.object is None:
+           layout.label("Please select an object")
+           return
+        
+        if has_cloth(self, context):
+            
+            md = find_modifier(context.object, "FRACTURE")
+            col = layout.column(align=True)
+            col.prop(context.object, "cloth_bending_mode", text="Mode")
+            if context.object.cloth_bending_mode == "Bendable":
+                col.prop_search(context.object, "clothpin", context.object, "vertex_groups", text="Pin", icon='GROUP_VERTEX')
+            col.separator()
+            
+            col = layout.column(align=True)
+            col.label("Tearing")
+            col.prop(md, "cluster_count", text="Pieces")
+            
+            row = col.row(align=True)
+            row.prop(md, "cluster_breaking_angle", text="Angle")
+            row.prop(md, "cluster_breaking_distance", text="Distance")
+            row = col.row(align=True)
+            row.prop(md, "breaking_threshold", text="Threshold")
+        
+            col.separator()
+            col.label("Plastic Deform:")
+            row = col.row(align=True)
+            row.prop(md, "deform_angle", text="Angle")
+            row.prop(md, "deform_distance", text="Distance")
+            
+            row = col.row(align=True)
+            row.prop(md, "automerge_dist", text="Stretch Distance")    
+        
+            layout.operator("fracture.cloth_remove", icon='X')
+        else:
+            layout.operator("fracture.cloth_create", icon='MOD_CLOTH')
+              
             
 addon_keymaps = []
             
@@ -2707,6 +2817,7 @@ def register():
     bpy.utils.register_class(FakeFluidPanel)
     bpy.utils.register_class(FractureHelperPreferences)
     bpy.utils.register_class(CreateClothOperator)
+    bpy.utils.register_class(RemoveClothOperator)
     bpy.utils.register_class(FakeClothPanel)
     
     if bpy.context.user_preferences.addons[__name__].preferences.use_pie_menu:
@@ -2737,7 +2848,9 @@ def register():
     bpy.types.Object.custom_clusters = bpy.props.CollectionProperty(name="custom_clusters", type=ClusterVertexGroup)
     bpy.types.Object.simres = bpy.props.IntProperty(name="simres", default=10, min=1, update=update_fluid)
     bpy.types.Object.elemsize = bpy.props.FloatProperty(name="elemsize", default=0.1, min=0.01, update=update_size)
-    bpy.types.Object.clothpin = bpy.props.StringProperty(name="clothpin", default="")
+    bpy.types.Object.clothpin = bpy.props.StringProperty(name="clothpin", default="", update=update_pin)
+    bpy.types.Object.cloth_bending_mode = bpy.props.EnumProperty(name="cloth_bending_mode", update=update_bend, items=[("Stiff", "Stiff", "Stiff", '', 0), \
+                                                                ("Bendable", "Bendable", "Bendable", '', 1)], default="Bendable")
     
 def unregister():
     bpy.utils.unregister_class(MainOperationsPanel)
@@ -2777,6 +2890,7 @@ def unregister():
    
     bpy.utils.unregister_class(FakeClothPanel)
     bpy.utils.unregister_class(CreateClothOperator)
+    bpy.utils.unregister_class(RemoveClothOperator)
     
     if bpy.context.user_preferences.addons[__name__].preferences.use_pie_menu:
         unregister_pie_keymaps()
@@ -2803,6 +2917,7 @@ def unregister():
     del bpy.types.Object.simres
     del bpy.types.Object.elemsize
     del bpy.types.Object.clothpin
+    del bpy.types.Object.cloth_bending_mode
     
     bpy.utils.unregister_class(ClusterVertexGroup)
 
