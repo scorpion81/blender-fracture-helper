@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender and JTa Nelson",
-    "version": (2, 3, 2),
+    "version": (2, 3, 3),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -2374,6 +2374,36 @@ class ApplyCustomClustersOperator(bpy.types.Operator):
                         break        
         
         return {'FINISHED'}
+
+class ObjectToClusterOperator(bpy.types.Operator):
+    """creates clusters from objects, via vgroups"""
+    bl_idname = "fracture.custom_clusters_objects_to_clusters"
+    bl_label = "Create Clusters"
+    
+    def execute(self, context):
+        a = context.active_object
+        for o in context.selected_objects:
+            context.scene.objects.active = o
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action = 'SELECT')
+            vg = o.vertex_groups.new(name=o.name)
+            o.vertex_groups.active = vg
+            bpy.ops.object.vertex_group_assign()
+            bpy.ops.object.mode_set(mode='OBJECT')
+        
+        bpy.ops.object.join()
+        act = context.active_object
+        
+        for i, vg in enumerate(act.vertex_groups):
+            c = act.custom_clusters.add()
+            c.cluster = i
+            c.vertex_group = vg.name
+        
+        #restore saved active object    
+        context.scene.objects.active = a
+        return {'FINISHED'}
+            
+            
     
 class CustomClusterPanel(bpy.types.Panel):
     bl_label = "Cluster Editor"
@@ -2385,6 +2415,8 @@ class CustomClusterPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         col = layout.column(align=True)
+        col.operator("fracture.custom_clusters_objects_to_clusters")
+        
         for i,c in enumerate(context.object.custom_clusters):
             row = col.row(align=True)
             row.prop_search(c, "vertex_group", context.object, "vertex_groups", text="")
@@ -2613,6 +2645,7 @@ class CreateClothOperator(bpy.types.Operator):
         md.cluster_constraint_type = 'POINT'
         md.use_self_collision = True
         md.use_constraints = True
+        md.shards_to_islands = True
         
         #tearable, e.g with angle
         md.cluster_breaking_angle = math.radians(40)
@@ -2694,6 +2727,7 @@ def update_bend(self, context):
         md.cluster_breaking_percentage = 85
         md.cluster_breaking_angle = math.radians(10)
         md.activate_broken = True
+        md.shards_to_islands = True
         ob.rigid_body.kinematic = True
     elif ob.cloth_bending_mode == "Bendable":
         md.contact_dist = 0.5
@@ -2704,6 +2738,7 @@ def update_bend(self, context):
         md.cluster_breaking_percentage = 0
         md.cluster_breaking_angle = math.radians(40)
         md.activate_broken = False
+        md.shards_to_islands = True
         ob.rigid_body.kinematic = False
     
     
@@ -2811,6 +2846,7 @@ def register():
     bpy.utils.register_class(AddCustomClusterOperator)
     bpy.utils.register_class(RemoveCustomClusterOperator)
     bpy.utils.register_class(ApplyCustomClustersOperator)
+    bpy.utils.register_class(ObjectToClusterOperator)
     bpy.utils.register_class(CustomClusterPanel)
     bpy.utils.register_class(CreateFluidOperator)
     bpy.utils.register_class(RemoveFluidOperator)
@@ -2883,6 +2919,7 @@ def unregister():
     bpy.utils.unregister_class(AddCustomClusterOperator)
     bpy.utils.unregister_class(RemoveCustomClusterOperator)
     bpy.utils.unregister_class(ApplyCustomClustersOperator)
+    bpy.utils.unregister_class(ObjectToClusterOperator)
     
     bpy.utils.unregister_class(FakeFluidPanel)
     bpy.utils.unregister_class(CreateFluidOperator)
