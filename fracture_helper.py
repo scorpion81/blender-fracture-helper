@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Fracture Helpers",
     "author": "scorpion81 and Dennis Fassbaender and JTa Nelson",
-    "version": (2, 3, 3),
+    "version": (2, 3, 4),
     "blender": (2, 79, 0),
     "location": "Tool Shelf > Fracture > Fracture Helpers",
     "description": "Several fracture modifier setup helpers",
@@ -1355,9 +1355,9 @@ class SmokeSetupOperator(bpy.types.Operator):
                 #pdata.frame_end = context.object.smokedebrisdust_emission_start + 10
                 pdata.frame_start = context.scene.frame_current
                 pdata.frame_end = context.scene.frame_current + 25
-                pdata.lifetime = 5
+                pdata.lifetime = 2
                 pdata.factor_random = 0
-                pdata.normal_factor = 0
+                pdata.normal_factor = 1
                 pdata.tangent_phase = 0.1
                 pdata.use_rotations = True
                 pdata.rotation_factor_random = 0
@@ -1365,8 +1365,8 @@ class SmokeSetupOperator(bpy.types.Operator):
                 pdata.angular_velocity_mode = 'VELOCITY'
                 pdata.angular_velocity_factor = 0
                 pdata.use_dynamic_rotation = True
-                pdata.particle_size = 0.2
-                pdata.size_random = 0.5
+                pdata.particle_size = 0.5
+                pdata.size_random = 0.0
                 pdata.use_multiply_size_mass = True
                 pdata.effector_weights.gravity = 1.0
                 pdata.effector_weights.smokeflow = 0
@@ -1397,7 +1397,7 @@ class SmokeSetupOperator(bpy.types.Operator):
                 flow = md.flow_settings
                 flow.smoke_flow_source = 'PARTICLES'
                 flow.particle_system = partsys
-                flow.particle_size = 0.3
+                flow.particle_size = 0.5
                 flow.surface_distance = 0.20
                 flow.density = 0.63
                 flow.subframes = 2
@@ -1423,9 +1423,9 @@ class SmokeSetupOperator(bpy.types.Operator):
             domain = md.domain_settings
             domain.alpha = 0.01
             domain.beta = -0.25
-            domain.vorticity = 2.5
+            domain.vorticity = 0.5
             domain.use_dissolve_smoke = True
-            domain.dissolve_speed = 60
+            domain.dissolve_speed = 15
             domain.use_dissolve_smoke_log = True
             domain.use_adaptive_domain = True
             domain.use_high_resolution = True
@@ -1580,8 +1580,8 @@ class DustSetupOperator(bpy.types.Operator):
                 #pdata.frame_end = context.object.smokedebrisdust_emission_start + 10
                 pdata.frame_start = context.scene.frame_current
                 pdata.frame_end = context.scene.frame_current + 25
-                pdata.lifetime = 75
-                pdata.lifetime_random = 0.60
+                pdata.lifetime = 60
+                pdata.lifetime_random = 0.75
                 pdata.factor_random = 0.85
                 pdata.normal_factor = 0
                 pdata.tangent_phase = 0.5
@@ -1773,6 +1773,7 @@ class DebrisSetupOperator(bpy.types.Operator):
                 pdata.lifetime = context.scene.frame_end
                 pdata.factor_random = 1
                 pdata.normal_factor = 0
+                pdata.object_factor = 0.275
                 pdata.tangent_phase = 0.1
                 pdata.use_rotations = True
                 pdata.rotation_factor_random = 0.5
